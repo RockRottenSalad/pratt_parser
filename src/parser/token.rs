@@ -23,14 +23,13 @@ pub enum Token {
     EOF
 }
 
-
 impl Token {
     pub fn precedence(self) -> u8 {
         match self {
             Token::EOF => 0,
             Token::Literal(_) => 0,
             Token::Plus => 1,
-            Token::Minus => 2
+            Token::Minus => 1
         }
     }
 }
@@ -70,5 +69,4 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         _ => Err(TokenizerError::IllegalToken(ch))
     }
 }
-
 

@@ -2,18 +2,20 @@
 mod parser;
 use crate::parser::parser::parse;
 use crate::parser::{*};
-use crate::tokenizer::{*};
+use crate::token::{*};
 
 
 fn main() {
-    let mut tokenizer = match Tokenizer::new("5+9-4+2") {
+    let input = "(2 + 3) * 4/2";
+
+    let tokens = match tokenize(input) { // Should give 10
         Ok(v) => v,
         Err((err, i)) => panic!("Tokenizer error: {err} at index {i}")
     };
 
-    let ast = parse(&mut tokenizer);
+    let ast = parse(&tokens);
 
     let output = ast.evaluate();
 
-    println!("{tokenizer} = {ast} = {output}");
+    println!("{input}\n= {:?}\n= {ast}\n= {output}", tokens);
 }

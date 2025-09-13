@@ -1,9 +1,13 @@
 # WIP implementation of pratt parser
 
-Can currently only parse the following language with absolutely no whitespace anywhere in the input
+Can currently only parse the following language.
 
 ```
-expr -> Integer['+'|'-']expr
-expr -> Integer
+Expr -> (Expr)
+Expr -> Integer['+'|'-'|'*'|'/']Expr
+Expr -> Integer
+Integer -> ['+'|'-']*[0-9]+
 ```
+
+The parser can produce an AST and the AST can be evaluated.
 

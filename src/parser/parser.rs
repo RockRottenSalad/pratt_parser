@@ -2,6 +2,7 @@
 
 // TODO
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
+// More fault tolerance + should return Result type
 
 use crate::{parser::{ast::{Expression, Operator}}, token::Token};
 
@@ -42,48 +43,66 @@ impl<'a> Parser<'a> {
         self.index = 0;
     }
 
+    pub fn index(&self) -> usize {
+        // Only used for error reporting. We want the index of the token we just consumed, not the
+        // index we're about to consume.
+        //
+        // The zero check is to prevent this from blowing up if it's called before any tokens are
+        // conumsed for some reason
+        if self.index == 0 { self.index } else { self.index - 1 }
+    }
+
+}
+
+#[derive(Debug)]
+pub enum ParserError {
+    UnterminatedGrouping(usize),
+    ExpectedOperator(usize),
+    ExpectedLiteral(usize),
+    SyntaxError(usize),
 }
 
 
-fn head_handler(token: Token, p: &mut Parser) -> Box<Expression> {
+fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
-        Token::Literal(x) => Box::new( Expression::Literal(x)  ),
-        Token::Minus => Box::new( Expression::Unary(Operator::Subtraction, parse_expr(p, token.precedence())) ),
-        Token::Plus => Box::new( Expression::Unary(Operator::Addition, parse_expr(p, token.precedence())) ),
-        Token::ParenL => {let expr = parse_expr(p, 0); match p.next() {
-            Token::ParenR => Box::new( Expression::Grouping(expr) ),
-            _ => panic!("Unterminated grouping expression, expected ')")
+        Token::Literal(x) => Ok(Box::new( Expression::Literal(x)  )),
+        Token::Minus => Ok(Box::new( Expression::Unary(Operator::Subtraction, parse_expr(p, token.precedence())? ) )),
+        Token::Plus => Ok(Box::new( Expression::Unary(Operator::Addition, parse_expr(p, token.precedence())? ) )),
+        Token::ParenL => {
+            let expr = parse_expr(p, 0)?;
+            match p.next() {
+                Token::ParenR => Ok(Box::new( Expression::Grouping(expr) )),
+                _ => Err(ParserError::UnterminatedGrouping(p.index()))
         } },
-        _ => { panic!("{token} cannot be placed at the head of an expression")  }
+        _ => Err(ParserError::ExpectedLiteral(p.index()))
     }
 }
 
-fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Box<Expression> {
+fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
-        Token::Literal(_) => {panic!("Expected operator after literal")},
-        Token::Plus => { Box::new( Expression::Binary(Operator::Addition, expr, parse_expr(p, token.precedence())) )  },
-        Token::Minus => { Box::new( Expression::Binary(Operator::Subtraction, expr, parse_expr(p, token.precedence())) )  },
-        Token::Star => { Box::new( Expression::Binary(Operator::Multiplication, expr, parse_expr(p, token.precedence())) )  },
-        Token::Slash => { Box::new( Expression::Binary(Operator::Division, expr, parse_expr(p, token.precedence())) )  },
-//        Token::ParenR => Box::new( Expression::Grouping(expr)  ),
-        _ => {panic!("{token} cannot be placed at the tail of an expression")}
+        Token::Literal(_) => Err(ParserError::ExpectedOperator(p.index())),
+        Token::Plus => Ok(Box::new( Expression::Binary(Operator::Addition, expr, parse_expr(p, token.precedence())?) )),
+        Token::Minus => Ok(Box::new( Expression::Binary(Operator::Subtraction, expr, parse_expr(p, token.precedence())?) )),
+        Token::Star => Ok(Box::new( Expression::Binary(Operator::Multiplication, expr, parse_expr(p, token.precedence())?) )),
+        Token::Slash => Ok(Box::new( Expression::Binary(Operator::Division, expr, parse_expr(p, token.precedence())?) )),
+        _ => Err(ParserError::SyntaxError(p.index()))
     }
 }
 
-fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Box<Expression> {
+fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, ParserError> {
     let mut current = p.next();
-    let mut left_expr = head_handler(current, p);
+    let mut left_expr = head_handler(current, p)?;
 
     while p.peek().precedence() > expr_precedence {
         current = p.next();
-        left_expr = tail_handler(current, left_expr, p);
+        left_expr = tail_handler(current, left_expr, p)?;
 
     }
 
-    return left_expr;
+    return Ok(left_expr);
 }
 
-pub fn parse(t: &Vec<Token>) -> Box<Expression> {
+pub fn parse(t: &Vec<Token>) -> Result<Box<Expression>, ParserError> {
     return parse_expr(&mut Parser::new(t), 0);
 }
 

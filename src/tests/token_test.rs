@@ -65,5 +65,23 @@ mod tests {
             assert_eq!(*tok, expected[i]);
         }
     }
+
+    #[test]
+    fn test_tokenize_bad() {
+        let input = "20/5 * 10 + % - 2*(-4)";
+        let expected_index_error = 12;
+        let expected_char_error = '%';
+
+        match tokenize(input) {
+            Ok(_) => panic!("Tokenize should've failed"),
+            Err((TokenizerError::IllegalToken(actual_ch), actual_index)) => {
+                assert_eq!(expected_index_error, actual_index);
+                assert_eq!(expected_char_error, actual_ch);
+            },
+
+            // Implement this when more error types are added
+//            Err(_) => panic!("Error type should've been IllegalToken")
+        }
+    }
 }
 

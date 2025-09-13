@@ -14,9 +14,15 @@ fn main() {
         Err((err, i)) => panic!("Tokenizer error: {err} at index {i}")
     };
 
-    let ast = parse(&tokens);
+    let ast = match parse(&tokens) {
+        Ok(v) => v,
+        Err(e) => panic!("Error parsing tokens {:?} with error {:?}", tokens, e)
+    };
 
-    let output = ast.evaluate();
+    let output = match ast.evaluate() {
+        Ok(v) => v,
+        Err(e) => panic!("Syntax error: {:?}", e)
+    };
 
     println!("{input}\n= {:?}\n= {ast}\n= {output}", tokens);
 }

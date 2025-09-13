@@ -21,9 +21,11 @@ impl Operator {
 
 }
 
-//pub enum LiteralValues {
-//    Number(i32)
-//}
+#[derive(Debug)]
+pub enum AstError {
+    DivisionByZero,
+    IllegalUnaryOperator
+}
 
 pub enum Expression {
     Binary(Operator, Box<Expression>, Box<Expression>),
@@ -34,21 +36,29 @@ pub enum Expression {
 
 impl Expression {
 
-    pub fn evaluate(&self) -> i32 {
+    pub fn evaluate(&self) -> Result<i32, AstError> {
         match self {
-            Expression::Literal(w) => *w,
+            Expression::Literal(w) => Ok(*w),
             Expression::Grouping(expr) => expr.evaluate(),
             Expression::Binary(op, left, right) => match op {
-                Operator::Addition => left.evaluate() + right.evaluate(),
-                Operator::Subtraction => left.evaluate() - right.evaluate(),
-                Operator::Multiplication => left.evaluate() * right.evaluate(),
-                Operator::Division => left.evaluate() / right.evaluate(),
+                Operator::Addition => Ok(left.evaluate()? + right.evaluate()?),
+                Operator::Subtraction => Ok(left.evaluate()? - right.evaluate()?),
+                Operator::Multiplication => Ok(left.evaluate()? * right.evaluate()?),
+                Operator::Division => {
+                    let left = left.evaluate()?;
+                    let right = right.evaluate()?;
+                    if right == 0 {
+                        Err(AstError::DivisionByZero)
+                    }else {
+                        Ok(left / right)
+                    }
+                },
             }
             Expression::Unary(op, expr) => match op {
                 Operator::Addition => expr.evaluate(),
-                Operator::Subtraction => -expr.evaluate(),
-                Operator::Multiplication => panic!("Multiplication is not a unary operator"),
-                Operator::Division => panic!("Division is not a unary operator"),
+                Operator::Subtraction => Ok(-expr.evaluate()?),
+                Operator::Multiplication => Err(AstError::IllegalUnaryOperator),
+                Operator::Division => Err(AstError::IllegalUnaryOperator),
             }
         }
 

@@ -18,7 +18,7 @@ impl fmt::Display for TokenizerError {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,PartialEq)]
 pub enum Token {
     Literal(i32),
     Plus,
@@ -44,8 +44,9 @@ impl Token {
             Token::Star => 2,
             Token::Slash => 2,
 
-            Token::ParenR => 1,
-            Token::ParenL => 3,
+            // Proper precedence for these are baked directly into the parser's head handler
+            Token::ParenR => 0,
+            Token::ParenL => 0,
         }
     }
 }

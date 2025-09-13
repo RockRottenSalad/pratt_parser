@@ -50,7 +50,10 @@ fn head_handler(token: Token, p: &mut Parser) -> Box<Expression> {
         Token::Literal(x) => Box::new( Expression::Literal(x)  ),
         Token::Minus => Box::new( Expression::Unary(Operator::Subtraction, parse_expr(p, token.precedence())) ),
         Token::Plus => Box::new( Expression::Unary(Operator::Addition, parse_expr(p, token.precedence())) ),
-        Token::ParenL => parse_expr(p, 0),
+        Token::ParenL => {let expr = parse_expr(p, 0); match p.next() {
+            Token::ParenR => Box::new( Expression::Grouping(expr) ),
+            _ => panic!("Unterminated grouping expression, expected ')")
+        } },
         _ => { panic!("{token} cannot be placed at the head of an expression")  }
     }
 }
@@ -62,7 +65,7 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Box<Expr
         Token::Minus => { Box::new( Expression::Binary(Operator::Subtraction, expr, parse_expr(p, token.precedence())) )  },
         Token::Star => { Box::new( Expression::Binary(Operator::Multiplication, expr, parse_expr(p, token.precedence())) )  },
         Token::Slash => { Box::new( Expression::Binary(Operator::Division, expr, parse_expr(p, token.precedence())) )  },
-        Token::ParenR => Box::new( Expression::Grouping(expr)  ),
+//        Token::ParenR => Box::new( Expression::Grouping(expr)  ),
         _ => {panic!("{token} cannot be placed at the tail of an expression")}
     }
 }

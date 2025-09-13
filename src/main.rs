@@ -8,9 +8,8 @@ use crate::token::{*};
 
 fn main() {
     let input = "-(241 + 5) * 3 + -4/((+2))";
-//    let input = "-(241 + 5)";
 
-    let tokens = match tokenize(input) { // Should give 10
+    let tokens = match tokenize(input) { // Should give -740
         Ok(v) => v,
         Err((err, i)) => panic!("Tokenizer error: {err} at index {i}")
     };

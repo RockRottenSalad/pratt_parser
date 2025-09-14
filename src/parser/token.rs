@@ -5,6 +5,8 @@ use std::fmt;
 use std::iter::Peekable;
 use std::{str::CharIndices, vec::Vec};
 
+use crate::utils::types::Either;
+
 #[derive(Debug)]
 pub enum TokenizerError {
     IllegalToken(char)
@@ -20,7 +22,9 @@ impl fmt::Display for TokenizerError {
 
 #[derive(Debug,Clone,PartialEq)]
 pub enum Token {
-    Literal(i32),
+    LiteralInteger(i32),
+    LiteralReal(f32),
+    Period,
     Plus,
     Minus,
     Star,
@@ -36,7 +40,8 @@ impl Token {
         match self {
             Token::EOF | Token::Space => 0,
 
-            Token::Literal(_) => 0,
+            Token::LiteralInteger(_) => 0,
+            Token::LiteralReal(_) => 0,
 
             Token::Plus => 1,
             Token::Minus => 1,
@@ -44,9 +49,8 @@ impl Token {
             Token::Star => 2,
             Token::Slash => 2,
 
-            // Proper precedence for these are baked directly into the parser's head handler
-            Token::ParenR => 0,
-            Token::ParenL => 0,
+            // Proper precedence for rest either don't matter or are baked directly into the parser
+            _ => 0
         }
     }
 }
@@ -54,13 +58,15 @@ impl Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Token::Literal(x) => write!(f, "Literal({x})"),
+            Token::LiteralInteger(x) => write!(f, "LiteralInteger({x})"),
+            Token::LiteralReal(x) => write!(f, "LiteralReal({x})"),
             Token::Plus => write!(f, "Plus(+)"),
             Token::Minus => write!(f, "Minus(-)"),
             Token::Star => write!(f, "Star(*)"),
             Token::Slash => write!(f, "Slash(/)"),
             Token::ParenR => write!(f, "ParenR())"),
             Token::ParenL => write!(f, "Slash(()"),
+            Token::Period => write!(f, "Period(.)"),
             Token::EOF => write!(f, "EOF"),
             Token::Space => write!(f, " "),
         }
@@ -75,8 +81,29 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         '/' => Ok(Token::Slash),
         '(' => Ok(Token::ParenL),
         ')' => Ok(Token::ParenR),
+        '.' => Ok(Token::Period),
         ' ' | '\t' | '\n' => Ok(Token::Space),
         _ => Err(TokenizerError::IllegalToken(ch)) 
+    }
+}
+
+fn parse_literal_new(chs: &mut Peekable<CharIndices>) -> Either<i32, f32> {
+    let before_dot = parse_literal(chs);
+
+    if let Some((_, ch)) = chs.peek() && *ch == '.' {
+        let _ = chs.next();
+
+        let before_dot = before_dot as f32;
+        let after_dot = parse_literal(chs);
+
+        if after_dot != 0 {
+            // TODO: This is a hack, fix it.
+            Either::Right(before_dot + (after_dot as f32) / 10.0_f32.powi((after_dot.ilog10()+1) as i32))
+        }else {
+            Either::Right(before_dot)
+        }
+    }else {
+        Either::Left(before_dot)
     }
 }
 
@@ -102,7 +129,10 @@ pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
 
     while let Some((i, ch)) = chs.peek() {
         if ch.is_digit(radix) {
-            tokens.push( Token::Literal(parse_literal(&mut chs) ));
+            match parse_literal_new(&mut chs) {
+                Either::Left(x) => tokens.push( Token::LiteralInteger(x)),
+                Either::Right(x) => tokens.push( Token::LiteralReal(x)),
+            }
         } else {
             match char_to_token(*ch) {
                 Ok(t) => match t {

@@ -1,22 +1,24 @@
 
 mod parser;
 mod tests;
+mod utils;
+
 use crate::parser::parser::parse;
 use crate::parser::{*};
 use crate::token::{*};
 
 
 fn main() {
-    let input = "-(241 + 5) * 3 + -4/((+2))";
+    let input = "0.5 * 10/2 * (3 + 5) + (-5)";
 
-    let tokens = match tokenize(input) { // Should give -740
+    let tokens = match tokenize(input) { // Should give 15
         Ok(v) => v,
         Err((err, i)) => panic!("Tokenizer error: {err} at index {i}")
     };
 
     let ast = match parse(&tokens) {
         Ok(v) => v,
-        Err(e) => panic!("Error parsing tokens {:?} with error {:?}", tokens, e)
+        Err(e) => panic!("Error parsing tokens:\n {:?}\n with error {:?}", tokens, e)
     };
 
     let output = match ast.evaluate() {

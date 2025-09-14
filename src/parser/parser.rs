@@ -4,12 +4,17 @@
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
 // More fault tolerance + should return Result type
 
-use crate::{parser::{ast::{Expression, Operator}}, token::Token};
+use crate::{parser::{ast::{Expression, Operator, LiteralKind}}, token::Token};
 
 struct Parser<'a> {
     tokens: &'a Vec<Token>,
     index: usize
 }
+
+struct Example {
+    iter: Box<dyn Iterator<Item = u32>>,
+}
+
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<Token>) -> Self {
@@ -44,17 +49,12 @@ impl<'a> Parser<'a> {
     }
 
     pub fn index(&self) -> usize {
-        // Only used for error reporting. We want the index of the token we just consumed, not the
-        // index we're about to consume.
-        //
-        // The zero check is to prevent this from blowing up if it's called before any tokens are
-        // conumsed for some reason
-        if self.index == 0 { self.index } else { self.index - 1 }
+        self.index
     }
 
 }
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub enum ParserError {
     UnterminatedGrouping(usize),
     ExpectedOperator(usize),
@@ -65,7 +65,8 @@ pub enum ParserError {
 
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
-        Token::Literal(x) => Ok(Box::new( Expression::Literal(x)  )),
+        Token::LiteralInteger(x) => Ok(Box::new( Expression::Literal(LiteralKind::Integer(x))  )),
+        Token::LiteralReal(x) => Ok(Box::new( Expression::Literal(LiteralKind::Real(x))  )),
         Token::Minus => Ok(Box::new( Expression::Unary(Operator::Subtraction, parse_expr(p, token.precedence())? ) )),
         Token::Plus => Ok(Box::new( Expression::Unary(Operator::Addition, parse_expr(p, token.precedence())? ) )),
         Token::ParenL => {
@@ -80,7 +81,8 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
 
 fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
-        Token::Literal(_) => Err(ParserError::ExpectedOperator(p.index())),
+        Token::LiteralInteger(_) => Err(ParserError::ExpectedOperator(p.index())),
+        Token::LiteralReal(_) => Err(ParserError::ExpectedOperator(p.index())),
         Token::Plus => Ok(Box::new( Expression::Binary(Operator::Addition, expr, parse_expr(p, token.precedence())?) )),
         Token::Minus => Ok(Box::new( Expression::Binary(Operator::Subtraction, expr, parse_expr(p, token.precedence())?) )),
         Token::Star => Ok(Box::new( Expression::Binary(Operator::Multiplication, expr, parse_expr(p, token.precedence())?) )),
@@ -99,10 +101,18 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
 
     }
 
-    return Ok(left_expr);
+    Ok(left_expr)
 }
 
 pub fn parse(t: &Vec<Token>) -> Result<Box<Expression>, ParserError> {
-    return parse_expr(&mut Parser::new(t), 0);
+    let mut parser = Parser::new(t);
+    let res = parse_expr(&mut parser, 0);
+
+    if res.is_ok() && parser.peek() != Token::EOF {
+        Err(ParserError::ExpectedOperator(parser.index()))
+    }else {
+        res
+    }
+
 }
 

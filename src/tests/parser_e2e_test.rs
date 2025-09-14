@@ -53,5 +53,34 @@ mod parser_e2e_test {
 
     }
 
+    #[test]
+    fn test_parser_e2e_bad() {
 
+        let inputs = [
+            "5*",
+            "4 5",
+            "(5+10",
+        ];
+        
+
+        let expected = [
+            ParserError::ExpectedLiteral(2),
+            ParserError::ExpectedOperator(1),
+            ParserError::UnterminatedGrouping(4),
+        ];
+
+        for (input, output) in std::iter::zip(inputs, expected).into_iter() {
+            let tokens = match tokenize(input) {
+                Ok(v) => v,
+                Err((e, i)) => panic!("Tokenizer error: {e} at index {i}")
+            };
+
+            // NOTE: This will return a result in the future
+            match parse(&tokens) {
+                Ok(v) => panic!("Should failed, instead got value {v}"),
+                Err(e) => assert_eq!(e, output)
+            };
+
+        }
+    }
 }

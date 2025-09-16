@@ -5,6 +5,7 @@
 #[cfg(test)]
 mod parser_e2e_test {
 
+    use crate::ast::LiteralKind;
     use crate::token::{*};
     use crate::parse;
     use crate::parser::parser::ParserError;
@@ -46,7 +47,7 @@ mod parser_e2e_test {
             };
 
             match ast.evaluate() {
-                Ok(v) => assert_eq!(v, output),
+                Ok(v) => assert_eq!(v, LiteralKind::Integer(output)),
                 Err(e) => panic!("Syntax error: {:?}", e)
             }
         }

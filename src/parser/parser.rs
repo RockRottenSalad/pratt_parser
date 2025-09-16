@@ -4,7 +4,7 @@
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
 // More fault tolerance + should return Result type
 
-use crate::{parser::{ast::{Expression, Operator, LiteralKind}}, token::Token};
+use crate::{parser::{ast::{Expression, LiteralKind}}, token::Token};
 
 struct Parser<'a> {
     tokens: &'a Vec<Token>,
@@ -19,6 +19,12 @@ struct Example {
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<Token>) -> Self {
         Parser { tokens, index: 0 }
+    }
+
+    pub fn consume(&mut self) {
+        if self.tokens_remaining() > 0 {
+            self.index += 1;
+        }
     }
 
     pub fn next(&mut self) -> Token {
@@ -67,8 +73,9 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
     match token {
         Token::LiteralInteger(x) => Ok(Box::new( Expression::Literal(LiteralKind::Integer(x))  )),
         Token::LiteralReal(x) => Ok(Box::new( Expression::Literal(LiteralKind::Real(x))  )),
-        Token::Minus => Ok(Box::new( Expression::Unary(Operator::Subtraction, parse_expr(p, token.precedence())? ) )),
-        Token::Plus => Ok(Box::new( Expression::Unary(Operator::Addition, parse_expr(p, token.precedence())? ) )),
+        Token::LiteralBoolean(x) => Ok(Box::new( Expression::Literal(LiteralKind::Boolean(x))  )),
+        Token::Minus => Ok(Box::new( Expression::UnaryNegation(parse_expr(p, token.precedence())? ) )),
+        Token::Plus => Ok(Box::new( Expression::UnaryAddition(parse_expr(p, token.precedence())? ) )),
         Token::ParenL => {
             let expr = parse_expr(p, 0)?;
             match p.next() {
@@ -83,10 +90,44 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
     match token {
         Token::LiteralInteger(_) => Err(ParserError::ExpectedOperator(p.index())),
         Token::LiteralReal(_) => Err(ParserError::ExpectedOperator(p.index())),
-        Token::Plus => Ok(Box::new( Expression::Binary(Operator::Addition, expr, parse_expr(p, token.precedence())?) )),
-        Token::Minus => Ok(Box::new( Expression::Binary(Operator::Subtraction, expr, parse_expr(p, token.precedence())?) )),
-        Token::Star => Ok(Box::new( Expression::Binary(Operator::Multiplication, expr, parse_expr(p, token.precedence())?) )),
-        Token::Slash => Ok(Box::new( Expression::Binary(Operator::Division, expr, parse_expr(p, token.precedence())?) )),
+        Token::Plus => Ok(Box::new( Expression::BinaryAddition(expr, parse_expr(p, token.precedence())?) )),
+        Token::Minus => Ok(Box::new( Expression::BinarySubtraction(expr, parse_expr(p, token.precedence())?) )),
+        Token::Star => Ok(Box::new( Expression::BinaryMultiplication(expr, parse_expr(p, token.precedence())?) )),
+        Token::Slash => Ok(Box::new( Expression::BinaryDivision(expr, parse_expr(p, token.precedence())?) )),
+
+        Token::GreaterThan => 
+            if p.peek() == Token::Equal  {
+                p.consume();
+                Ok(Box::new( Expression::GreaterEqualThan(expr, parse_expr(p, token.precedence())?) ))
+            }else {
+                Ok(Box::new( Expression::GreaterThan(expr, parse_expr(p, token.precedence())?) ))
+            },
+        Token::LessThan => 
+            if p.peek() == Token::Equal  {
+                p.consume();
+                Ok(Box::new( Expression::LessEqualThan(expr, parse_expr(p, token.precedence())?) ))
+            }else {
+                Ok(Box::new( Expression::LessThan(expr, parse_expr(p, token.precedence())?) ))
+            },
+
+        Token::Equal => 
+            if p.peek() == Token::Equal  {
+                p.consume();
+                Ok(Box::new( Expression::EqualTo(expr, parse_expr(p, token.precedence())?) ))
+            }else {
+                Err(ParserError::SyntaxError(p.index()))
+            },
+
+        Token::Bang => 
+            if p.peek() == Token::Equal  {
+                p.consume();
+                Ok(Box::new( Expression::NotEqualTo(expr, parse_expr(p, token.precedence())?) ))
+            }else {
+                Err(ParserError::SyntaxError(p.index()))
+            },
+
+
+
         _ => Err(ParserError::SyntaxError(p.index()))
     }
 }

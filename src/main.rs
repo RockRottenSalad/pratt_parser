@@ -11,6 +11,9 @@ use crate::token::{*};
 fn main() {
     let input = "0.5 * 10/2 * (3 + 5) + (-5)";
 
+    // Should give true
+    //let input = "5 <= 25*5 / 2"; 
+
     let tokens = match tokenize(input) { // Should give 15
         Ok(v) => v,
         Err((err, i)) => panic!("Tokenizer error: {err} at index {i}")

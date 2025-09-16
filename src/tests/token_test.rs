@@ -22,7 +22,7 @@ mod tests {
     fn test_char_to_token_bad() {
         // [1] char_to_token() is not used for tokenizing literals
         //                                          v [1]
-        let input = ['|', '_', '^', '!', 'a', 'B', '4'];
+        let input = ['|', '_', '^', '#', 'a', 'B', '4'];
 
         for ch in input.iter().map(|ch| char_to_token(*ch)) {
             assert!(ch.is_err(), "Checking that mapping the char to a token failed");

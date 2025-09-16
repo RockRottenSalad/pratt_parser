@@ -24,6 +24,8 @@ impl fmt::Display for TokenizerError {
 pub enum Token {
     LiteralInteger(i32),
     LiteralReal(f32),
+    LiteralBoolean(bool),
+
     Period,
     Plus,
     Minus,
@@ -31,6 +33,13 @@ pub enum Token {
     Slash,
     ParenR,
     ParenL,
+
+    GreaterThan,
+    LessThan,
+
+    Equal,
+    Bang,
+
     Space,
     EOF,
 }
@@ -43,11 +52,16 @@ impl Token {
             Token::LiteralInteger(_) => 0,
             Token::LiteralReal(_) => 0,
 
-            Token::Plus => 1,
-            Token::Minus => 1,
+            Token::GreaterThan => 1,
+            Token::LessThan => 1,
+            Token::Equal => 1,
+            Token::Bang => 1,
 
-            Token::Star => 2,
-            Token::Slash => 2,
+            Token::Plus => 2,
+            Token::Minus => 2,
+
+            Token::Star => 3,
+            Token::Slash => 4,
 
             // Proper precedence for rest either don't matter or are baked directly into the parser
             _ => 0
@@ -60,6 +74,7 @@ impl fmt::Display for Token {
         match *self {
             Token::LiteralInteger(x) => write!(f, "LiteralInteger({x})"),
             Token::LiteralReal(x) => write!(f, "LiteralReal({x})"),
+            Token::LiteralBoolean(x) => write!(f, "LiteralReal({x})"),
             Token::Plus => write!(f, "Plus(+)"),
             Token::Minus => write!(f, "Minus(-)"),
             Token::Star => write!(f, "Star(*)"),
@@ -67,6 +82,10 @@ impl fmt::Display for Token {
             Token::ParenR => write!(f, "ParenR())"),
             Token::ParenL => write!(f, "Slash(()"),
             Token::Period => write!(f, "Period(.)"),
+            Token::GreaterThan => write!(f, "GreaterThan(>)"),
+            Token::LessThan => write!(f, "LessThan(<)"),
+            Token::Equal => write!(f, "Equal(<)"),
+            Token::Bang => write!(f, "Bang(!)"),
             Token::EOF => write!(f, "EOF"),
             Token::Space => write!(f, " "),
         }
@@ -82,6 +101,12 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         '(' => Ok(Token::ParenL),
         ')' => Ok(Token::ParenR),
         '.' => Ok(Token::Period),
+        '>' => Ok(Token::GreaterThan),
+        '<' => Ok(Token::LessThan),
+        '!' => Ok(Token::Bang),
+        '=' => Ok(Token::Equal),
+        'T' => Ok(Token::LiteralBoolean(true)),
+        'F' => Ok(Token::LiteralBoolean(false)),
         ' ' | '\t' | '\n' => Ok(Token::Space),
         _ => Err(TokenizerError::IllegalToken(ch)) 
     }

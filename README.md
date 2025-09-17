@@ -11,7 +11,7 @@ cargo run -- cli
 ```
 
 The recommended way is to make a txt file with all your expressions as seen in
-`demo_files/example.txt` and provide the relative to that like so.
+`demo_files/example.txt` and provide the relative path to the file that like so.
 
 ```
 cargo run -- demo_files/example.txt

@@ -1,12 +1,20 @@
 #![allow(dead_code)] 
 
 use std::fmt;
-use std::ops::{*};
 
 #[derive(Debug)]
 pub enum AstError {
     DivisionByZero,
     IllegalUnaryOperator
+}
+
+impl fmt::Display for AstError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AstError::DivisionByZero => write!(f, "Division by zero"),
+            AstError::IllegalUnaryOperator => write!(f, "Illegal unary operator"),
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -22,6 +30,14 @@ impl LiteralKind {
             LiteralKind::Integer(x) => *x == 0,
             LiteralKind::Real(x) => *x == 0.0,
             LiteralKind::Boolean(x) => *x == false,
+        }
+    }
+
+    pub fn is_true(&self) -> bool {
+        match self {
+            LiteralKind::Boolean(x) => *x,
+            LiteralKind::Real(x) => *x > 0.0,
+            LiteralKind::Integer(x) => *x > 0
         }
     }
 
@@ -47,7 +63,7 @@ impl fmt::Display for LiteralKind {
 
 // Given a numeric operator this determines how two literals of any type can be combined
 macro_rules! numeric_reduce {
-    ($op:tt, $self:ident, $other:ident) => {
+    ($op:tt, $self:expr, $other:expr) => {
         match $self {
             LiteralKind::Integer(x) => match $other {
                 LiteralKind::Integer(y) => LiteralKind::Integer(x $op y),
@@ -90,56 +106,6 @@ macro_rules! boolean_reduce {
     }
 }
 
-// These trait implementations hurt to look at
-// Maybe it can be fixed with a typecast function which determines which
-impl Add for LiteralKind {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self::Output {
-        numeric_reduce!(+, self, other)
-    }
-}
-
-impl Sub for LiteralKind {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self::Output {
-        numeric_reduce!(-, self, other)
-    }
-}
-
-impl Mul for LiteralKind {
-    type Output = Self;
-
-    fn mul(self, other: Self) -> Self::Output {
-        numeric_reduce!(*, self, other)
-    }
-}
-
-impl Neg for LiteralKind {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        match self {
-            LiteralKind::Integer(x) => LiteralKind::Integer(-x),
-            LiteralKind::Real(x) => LiteralKind::Real(-x),
-            LiteralKind::Boolean(x) => LiteralKind::Boolean(!x)
-        }
-    }
-}
-
-impl Div for LiteralKind {
-    type Output = Result<Self, AstError>;
-
-    fn div(self, other: Self) -> Self::Output {
-        if other.is_zero() {
-            return Err(AstError::DivisionByZero);
-        }
-
-        Ok(numeric_reduce!(/, self, other))
-    }
-}
-
 pub enum Expression {
     //Binary(Operator, Box<Expression>, Box<Expression>),
     BinaryAddition(Box<Expression>, Box<Expression>),
@@ -158,6 +124,8 @@ pub enum Expression {
     EqualTo(Box<Expression>, Box<Expression>),
     NotEqualTo(Box<Expression>, Box<Expression>),
 
+    Ternary(Box<Expression>, Box<Expression>, Box<Expression>),
+
     Grouping(Box<Expression>),
     Literal(LiteralKind)
 }
@@ -168,10 +136,16 @@ impl Expression {
         match self {
             Expression::Literal(w) => Ok(w.clone()),
             Expression::Grouping(expr) => expr.evaluate(),
-            Expression::BinaryAddition(left, right) => Ok(left.evaluate()? + right.evaluate()?),
-            Expression::BinarySubtraction(left, right) => Ok(left.evaluate()? - right.evaluate()?),
-            Expression::BinaryMultiplication(left, right) => Ok(left.evaluate()? * right.evaluate()?),
-            Expression::BinaryDivision(left, right) => left.evaluate()? / right.evaluate()?,
+            Expression::BinaryAddition(left, right) => Ok(numeric_reduce!(+, left.evaluate()?, right.evaluate()?)),
+            Expression::BinarySubtraction(left, right) => Ok(numeric_reduce!(-, left.evaluate()?, right.evaluate()?)),
+            Expression::BinaryMultiplication(left, right) => Ok(numeric_reduce!(*, left.evaluate()?, right.evaluate()?)),
+            Expression::BinaryDivision(left, right) => {
+                let right = right.evaluate()?;
+                if right.is_zero() {
+                    return Err(AstError::DivisionByZero);
+                }
+                return Ok(numeric_reduce!(/, left.evaluate()?, right));
+            },
 
             Expression::GreaterThan(left, right) => Ok(boolean_reduce!(>, left.evaluate()?, right.evaluate()?)),
             Expression::GreaterEqualThan(left, right) => Ok(boolean_reduce!(>=, left.evaluate()?, right.evaluate()?)),
@@ -181,21 +155,19 @@ impl Expression {
             Expression::EqualTo(left, right) => Ok(boolean_reduce!(==, left.evaluate()?, right.evaluate()?)),
             Expression::NotEqualTo(left, right) => Ok(boolean_reduce!(!=, left.evaluate()?, right.evaluate()?)),
 
-            Expression::UnaryNegation(expr) => Ok(-expr.evaluate()?),
+            Expression::UnaryNegation(expr) => Ok(match expr.evaluate()? {
+                LiteralKind::Integer(x) => LiteralKind::Integer(-x),
+                LiteralKind::Real(x) => LiteralKind::Real(-x),
+                LiteralKind::Boolean(x) => LiteralKind::Boolean(!x)
+            }),
             Expression::UnaryAddition(expr) => Ok(expr.evaluate()?),
 
-//            Expression::Binary(op, left, right) => match op {
-//                Operator::Addition => Ok(left.evaluate()? + right.evaluate()?),
-//                Operator::Subtraction => Ok(left.evaluate()? - right.evaluate()?),
-//                Operator::Multiplication => Ok(left.evaluate()? * right.evaluate()?),
-//                Operator::Division => left.evaluate()? / right.evaluate()?,
-//            }
-//            Expression::Unary(op, expr) => match op {
-//                Operator::Addition => expr.evaluate(),
-//                Operator::Subtraction => Ok(-expr.evaluate()?),
-//                Operator::Multiplication => Err(AstError::IllegalUnaryOperator),
-//                Operator::Division => Err(AstError::IllegalUnaryOperator),
-//            }
+            Expression::Ternary(predicate, left, right) => 
+                if predicate.evaluate()?.is_true() {
+                    Ok(left.evaluate()?)
+                }else {
+                    Ok(right.evaluate()?)
+                }
         }
 
     } 
@@ -223,6 +195,8 @@ impl fmt::Display for Expression {
 
             Expression::UnaryNegation(e) => write!(f, "(- {e})"),
             Expression::UnaryAddition(e) => write!(f, "(+ {e})"),
+
+            Expression::Ternary(p, l, r) => write!(f, "(? {p} {l} : {r})"),
 
 //            Expression::Binary(op, l, r) => write!(f, "({} {l} {r})", op.to_char()),
 //            Expression::Unary(op, e) => write!(f, "({} {e})", op.to_char())

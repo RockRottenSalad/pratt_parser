@@ -4,17 +4,13 @@
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
 // More fault tolerance + should return Result type
 
+use std::fmt;
 use crate::{parser::{ast::{Expression, LiteralKind}}, token::Token};
 
 struct Parser<'a> {
     tokens: &'a Vec<Token>,
     index: usize
 }
-
-struct Example {
-    iter: Box<dyn Iterator<Item = u32>>,
-}
-
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<Token>) -> Self {
@@ -69,6 +65,21 @@ pub enum ParserError {
 }
 
 
+// TODO: Since there is a tokens array, that can be used alongside the index to give a better error
+// message. The index of a token doesn't map well to a string. Especially when you factor in the
+// fact that '>=' is counted as two tokens
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParserError::UnterminatedGrouping(x) => write!(f, "Unterminated grouping at {x}"),
+            ParserError::ExpectedOperator(x) => write!(f, "Expected operator at {x}"),
+            ParserError::ExpectedLiteral(x) => write!(f, "Expected literal at {x}"),
+            ParserError::SyntaxError(x) => write!(f, "Syntax error at {x}"),
+        }
+    }
+}
+
+
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
         Token::LiteralInteger(x) => Ok(Box::new( Expression::Literal(LiteralKind::Integer(x))  )),
@@ -95,6 +106,24 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
         Token::Star => Ok(Box::new( Expression::BinaryMultiplication(expr, parse_expr(p, token.precedence())?) )),
         Token::Slash => Ok(Box::new( Expression::BinaryDivision(expr, parse_expr(p, token.precedence())?) )),
 
+        Token::Question => {
+            let left = parse_expr(p, 0)?;
+
+            if p.peek() != Token::Colon {
+                return Err( ParserError::SyntaxError(p.index()) );
+            }else {
+                p.consume();
+            }
+
+            // TODO implement expected an expression error and use that here 
+            if p.peek() == Token::EOF {
+                return Err(ParserError::ExpectedLiteral(p.index()));
+            }
+
+            let right = parse_expr(p, 0)?;
+
+            Ok(Box::new(Expression::Ternary(expr, left, right)))
+        },
         Token::GreaterThan => 
             if p.peek() == Token::Equal  {
                 p.consume();
@@ -109,7 +138,6 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
             }else {
                 Ok(Box::new( Expression::LessThan(expr, parse_expr(p, token.precedence())?) ))
             },
-
         Token::Equal => 
             if p.peek() == Token::Equal  {
                 p.consume();
@@ -117,7 +145,6 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
             }else {
                 Err(ParserError::SyntaxError(p.index()))
             },
-
         Token::Bang => 
             if p.peek() == Token::Equal  {
                 p.consume();
@@ -125,10 +152,10 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
             }else {
                 Err(ParserError::SyntaxError(p.index()))
             },
-
-
-
-        _ => Err(ParserError::SyntaxError(p.index()))
+        _ =>  {
+            println!("TOKEN: {token}");
+            Err(ParserError::SyntaxError(p.index()))
+        }
     }
 }
 

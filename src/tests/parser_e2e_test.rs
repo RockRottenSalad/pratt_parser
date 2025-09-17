@@ -1,13 +1,13 @@
 
 // TODO:
-// Add bad tests
+// Add more bad tests
 
 #[cfg(test)]
 mod parser_e2e_test {
 
     use crate::ast::LiteralKind;
     use crate::token::{*};
-    use crate::parse;
+    use crate::parser::parser::parse;
     use crate::parser::parser::ParserError;
 
     #[test]
@@ -18,7 +18,9 @@ mod parser_e2e_test {
             "5*5*5*5",
             "--4",
             "-4",
-            "20/4*2 + -4/(23*(-5*(23*(40))))"
+            "20/4*2 + -4/(23*(-5*(23*(40))))",
+            "6 / 2 * (1 + 2)",
+            "-40*2 < -5*3 ? 1 : 0"
         ];
 
         let expected = [
@@ -26,7 +28,9 @@ mod parser_e2e_test {
             625,
             4,
             -4,
-            10
+            10,
+            9,
+            1
         ];
 
         for (input, output) in std::iter::zip(inputs, expected).into_iter() {
@@ -60,14 +64,16 @@ mod parser_e2e_test {
             "-2.5 * 3 + 75.2",
             "0.5*0.5",
             "-1.0",
-            "(20/4*2 + -4/(23*(-5*(23*(40))))) * 0.5"
+            "(20/4*2 + -4/(23*(-5*(23*(40))))) * 0.5",
+            "5.5*3.7 >= 0.5 / 4.0 ? (42.5+0.5)*2 : 0.0+1"
         ];
 
         let expected = [
             67.7,
             0.25,
             -1.0,
-            5.0
+            5.0,
+            86.0
         ];
 
         for (input, output) in std::iter::zip(inputs, expected).into_iter() {
@@ -144,6 +150,7 @@ mod parser_e2e_test {
             "5*",
             "4 5",
             "(5+10",
+            "3??"
         ];
         
 

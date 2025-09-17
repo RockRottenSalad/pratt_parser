@@ -9,13 +9,15 @@ use crate::utils::types::Either;
 
 #[derive(Debug)]
 pub enum TokenizerError {
-    IllegalToken(char)
+    IllegalToken(char),
+    UndefinedIdentifier(Box<str>)
 }
 
 impl fmt::Display for TokenizerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            TokenizerError::IllegalToken(ch) => write!(f, "IllegalToken({ch})")
+        match self {
+            TokenizerError::IllegalToken(ch) => write!(f, "IllegalToken({ch})"),
+            TokenizerError::UndefinedIdentifier(str) => write!(f, "UndefinedIdentifier({str})")
         }
     }
 }
@@ -42,6 +44,9 @@ pub enum Token {
 
     Space,
     EOF,
+
+    Question,
+    Colon,
 }
 
 impl Token {
@@ -52,16 +57,21 @@ impl Token {
             Token::LiteralInteger(_) => 0,
             Token::LiteralReal(_) => 0,
 
-            Token::GreaterThan => 1,
-            Token::LessThan => 1,
-            Token::Equal => 1,
-            Token::Bang => 1,
+            Token::GreaterThan => 2,
+            Token::LessThan => 2,
+            Token::Equal => 2,
+            Token::Bang => 2,
 
-            Token::Plus => 2,
-            Token::Minus => 2,
+            Token::Plus => 3,
+            Token::Minus => 3,
 
-            Token::Star => 3,
+            Token::Star => 4,
             Token::Slash => 4,
+
+            // TODO Figure out if ternary operator precedence be handled by parser instead?
+            // Might be cleaner, might not
+            Token::Question => 1,
+            Token::Colon => 0,
 
             // Proper precedence for rest either don't matter or are baked directly into the parser
             _ => 0
@@ -86,6 +96,8 @@ impl fmt::Display for Token {
             Token::LessThan => write!(f, "LessThan(<)"),
             Token::Equal => write!(f, "Equal(<)"),
             Token::Bang => write!(f, "Bang(!)"),
+            Token::Question => write!(f, "Question(?)"),
+            Token::Colon => write!(f, "Colon(:)"),
             Token::EOF => write!(f, "EOF"),
             Token::Space => write!(f, " "),
         }
@@ -105,21 +117,21 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         '<' => Ok(Token::LessThan),
         '!' => Ok(Token::Bang),
         '=' => Ok(Token::Equal),
-        'T' => Ok(Token::LiteralBoolean(true)),
-        'F' => Ok(Token::LiteralBoolean(false)),
+        '?' => Ok(Token::Question),
+        ':' => Ok(Token::Colon),
         ' ' | '\t' | '\n' => Ok(Token::Space),
         _ => Err(TokenizerError::IllegalToken(ch)) 
     }
 }
 
-fn parse_literal_new(chs: &mut Peekable<CharIndices>) -> Either<i32, f32> {
-    let before_dot = parse_literal(chs);
+fn parse_numeric_literal_new(chs: &mut Peekable<CharIndices>) -> Either<i32, f32> {
+    let before_dot = parse_integer_literal(chs);
 
     if let Some((_, ch)) = chs.peek() && *ch == '.' {
         let _ = chs.next();
 
         let before_dot = before_dot as f32;
-        let after_dot = parse_literal(chs);
+        let after_dot = parse_integer_literal(chs);
 
         if after_dot != 0 {
             // TODO: This is a hack, fix it.
@@ -132,7 +144,7 @@ fn parse_literal_new(chs: &mut Peekable<CharIndices>) -> Either<i32, f32> {
     }
 }
 
-fn parse_literal(chs: &mut Peekable<CharIndices>) -> i32 {
+fn parse_integer_literal(chs: &mut Peekable<CharIndices>) -> i32 {
     let radix = 10;
     let mut sum = 0;
 
@@ -145,6 +157,29 @@ fn parse_literal(chs: &mut Peekable<CharIndices>) -> i32 {
     sum
 }
 
+fn parse_identifier_or_keyword(chs: &mut Peekable<CharIndices>) -> Result<Token, TokenizerError> {
+    let mut string_builder: Vec<char> = Vec::with_capacity(25);
+
+    while let Some(ch) = chs
+        .next_if(|(_, ch)| ch.is_alphabetic() )
+        .map(|(_, ch)| ch) 
+    {
+        string_builder.push(ch);
+    }
+
+    // TODO as more keywords are added, a better way of handing this is needed.
+    // Maybe Radix Trie if it gets really bad?
+
+    let identifier: String = string_builder.into_iter().collect();
+
+    match identifier.as_str()  {
+        "true" => Ok(Token::LiteralBoolean(true)),
+        "false" => Ok(Token::LiteralBoolean(false)),
+        _ => Err(TokenizerError::UndefinedIdentifier( identifier.into_boxed_str()  ))
+    }
+
+}
+
 pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
     let radix = 10;
     let mut tokens: Vec<Token> = Vec::new();
@@ -154,9 +189,15 @@ pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
 
     while let Some((i, ch)) = chs.peek() {
         if ch.is_digit(radix) {
-            match parse_literal_new(&mut chs) {
+            match parse_numeric_literal_new(&mut chs) {
                 Either::Left(x) => tokens.push( Token::LiteralInteger(x)),
                 Either::Right(x) => tokens.push( Token::LiteralReal(x)),
+            }
+        } else if ch.is_alphabetic() {
+            let index = *i;
+            match parse_identifier_or_keyword(&mut chs) {
+                Ok(tok) => tokens.push(tok),
+                Err(e) => return Err((e, index))
             }
         } else {
             match char_to_token(*ch) {

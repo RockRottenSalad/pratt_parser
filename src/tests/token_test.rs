@@ -78,6 +78,8 @@ mod tests {
                 assert_eq!(expected_index_error, actual_index);
                 assert_eq!(expected_char_error, actual_ch);
             },
+            _ => panic!("Should've been an illegal token error")
+
 
             // Implement this when more error types are added
 //            Err(_) => panic!("Error type should've been IllegalToken")

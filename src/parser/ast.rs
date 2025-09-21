@@ -22,6 +22,7 @@ pub enum LiteralKind {
     Integer(i32),
     Real(f32),
     Boolean(bool),
+    Void
 }
 
 impl LiteralKind {
@@ -30,6 +31,7 @@ impl LiteralKind {
             LiteralKind::Integer(x) => *x == 0,
             LiteralKind::Real(x) => *x == 0.0,
             LiteralKind::Boolean(x) => *x == false,
+            LiteralKind::Void => true,
         }
     }
 
@@ -37,7 +39,8 @@ impl LiteralKind {
         match self {
             LiteralKind::Boolean(x) => *x,
             LiteralKind::Real(x) => *x > 0.0,
-            LiteralKind::Integer(x) => *x > 0
+            LiteralKind::Integer(x) => *x > 0,
+            LiteralKind::Void => false
         }
     }
 
@@ -46,6 +49,7 @@ impl LiteralKind {
             LiteralKind::Boolean(_) => 0,
             LiteralKind::Integer(_) => 1,
             LiteralKind::Real(_) => 2,
+            LiteralKind::Void => 3,
         }
     }
 
@@ -57,6 +61,7 @@ impl fmt::Display for LiteralKind {
             LiteralKind::Boolean(x) => write!(f, "{x}"),
             LiteralKind::Real(x) => write!(f, "{x}"),
             LiteralKind::Integer(x) => write!(f, "{x}"),
+            LiteralKind::Void => write!(f, "Void"),
         }
     }
 }
@@ -69,16 +74,25 @@ macro_rules! numeric_reduce {
                 LiteralKind::Integer(y) => LiteralKind::Integer(x $op y),
                 LiteralKind::Real(y) => LiteralKind::Real((x as f32) $op y),
                 LiteralKind::Boolean(y) => LiteralKind::Integer(x $op (y as i32)),
+                LiteralKind::Void => LiteralKind::Integer(x),
             },
             LiteralKind::Real(x) => match $other {
                 LiteralKind::Integer(y) => LiteralKind::Real(x $op (y as f32)),
                 LiteralKind::Real(y) => LiteralKind::Real(x $op y),
                 LiteralKind::Boolean(y) => LiteralKind::Real(x $op ((y as i32) as f32)),
+                LiteralKind::Void => LiteralKind::Real(x),
             },
             LiteralKind::Boolean(x) => match $other {
                 LiteralKind::Integer(y) => LiteralKind::Integer( (x as i32) $op y ),
                 LiteralKind::Real(y) => LiteralKind::Real(((x as i32) as f32) $op y),
                 LiteralKind::Boolean(y) => LiteralKind::Integer( (x as i32) $op (y as i32)  ),
+                LiteralKind::Void => LiteralKind::Boolean(x),
+            },
+            LiteralKind::Void => match $other {
+                LiteralKind::Integer(y) => LiteralKind::Integer(y),
+                LiteralKind::Real(y) => LiteralKind::Real(y),
+                LiteralKind::Boolean(y) => LiteralKind::Boolean(y),
+                LiteralKind::Void => LiteralKind::Void,
             }
         }
     }
@@ -91,17 +105,21 @@ macro_rules! boolean_reduce {
                 LiteralKind::Integer(y) => LiteralKind::Boolean(x $op y),
                 LiteralKind::Real(y) => LiteralKind::Boolean((x as f32) $op y),
                 LiteralKind::Boolean(y) => LiteralKind::Boolean(x $op (y as i32)),
+                LiteralKind::Void => LiteralKind::Void,
             },
             LiteralKind::Real(x) => match $other {
                 LiteralKind::Integer(y) => LiteralKind::Boolean(x $op (y as f32)),
                 LiteralKind::Real(y) => LiteralKind::Boolean(x $op y),
                 LiteralKind::Boolean(y) => LiteralKind::Boolean(x $op ((y as i32) as f32)),
+                LiteralKind::Void => LiteralKind::Void,
             },
             LiteralKind::Boolean(x) => match $other {
                 LiteralKind::Integer(y) => LiteralKind::Boolean( (x as i32) $op y ),
                 LiteralKind::Real(y) => LiteralKind::Boolean(((x as i32) as f32) $op y),
                 LiteralKind::Boolean(y) => LiteralKind::Boolean(x $op y),
-            }
+                LiteralKind::Void => LiteralKind::Void,
+            },
+            LiteralKind::Void => LiteralKind::Void
         }
     }
 }
@@ -158,7 +176,8 @@ impl Expression {
             Expression::UnaryNegation(expr) => Ok(match expr.evaluate()? {
                 LiteralKind::Integer(x) => LiteralKind::Integer(-x),
                 LiteralKind::Real(x) => LiteralKind::Real(-x),
-                LiteralKind::Boolean(x) => LiteralKind::Boolean(!x)
+                LiteralKind::Boolean(x) => LiteralKind::Boolean(!x),
+                LiteralKind::Void => LiteralKind::Void,
             }),
             Expression::UnaryAddition(expr) => Ok(expr.evaluate()?),
 

@@ -5,6 +5,7 @@
 #[cfg(test)]
 mod parser_e2e_test {
 
+    use crate::parser::parser::Parser;
     use crate::ast::LiteralKind;
     use crate::token::{*};
     use crate::parser::parser::parse;
@@ -39,13 +40,16 @@ mod parser_e2e_test {
                 Err((e, i)) => panic!("Tokenizer error: {e} at index {i}")
             };
 
-            let ast = match parse(&tokens) {
+            let mut parser = Parser::new(&tokens);
+
+            let ast = match parse(&mut parser) {
                 Ok(v) => v,
                 Err(e) => match e {
                     ParserError::UnterminatedGrouping(index) => panic!("Unterminated grouping at index {index} in {:?}", tokens),
                     ParserError::ExpectedOperator(index) => panic!("Expected operator at index {index} in {:?}", tokens),
                     ParserError::ExpectedLiteral(index) => panic!("Expected literal at index {index} in {:?}", tokens),
                     ParserError::SyntaxError(index) => panic!("Syntax error at index {index} in {:?}", tokens),
+                    ParserError::ExpectedToken(index, tok) => panic!("Expected {tok} at index {index} in {:?}", tokens),
                 }
             };
 
@@ -82,13 +86,16 @@ mod parser_e2e_test {
                 Err((e, i)) => panic!("Tokenizer error: {e} at index {i}")
             };
 
-            let ast = match parse(&tokens) {
+            let mut parser = Parser::new(&tokens);
+
+            let ast = match parse(&mut parser) {
                 Ok(v) => v,
                 Err(e) => match e {
                     ParserError::UnterminatedGrouping(index) => panic!("Unterminated grouping at index {index} in {:?}", tokens),
                     ParserError::ExpectedOperator(index) => panic!("Expected operator at index {index} in {:?}", tokens),
                     ParserError::ExpectedLiteral(index) => panic!("Expected literal at index {index} in {:?}", tokens),
                     ParserError::SyntaxError(index) => panic!("Syntax error at index {index} in {:?}", tokens),
+                    ParserError::ExpectedToken(index, tok) => panic!("Expected {tok} at index {index} in {:?}", tokens),
                 }
             };
 
@@ -122,13 +129,16 @@ mod parser_e2e_test {
                 Err((e, i)) => panic!("Tokenizer error: {e} at index {i}")
             };
 
-            let ast = match parse(&tokens) {
+            let mut parser = Parser::new(&tokens);
+
+            let ast = match parse(&mut parser) {
                 Ok(v) => v,
                 Err(e) => match e {
                     ParserError::UnterminatedGrouping(index) => panic!("Unterminated grouping at index {index} in {:?}", tokens),
                     ParserError::ExpectedOperator(index) => panic!("Expected operator at index {index} in {:?}", tokens),
                     ParserError::ExpectedLiteral(index) => panic!("Expected literal at index {index} in {:?}", tokens),
                     ParserError::SyntaxError(index) => panic!("Syntax error at index {index} in {:?}", tokens),
+                    ParserError::ExpectedToken(index, tok) => panic!("Expected {tok} at index {index} in {:?}", tokens),
                 }
             };
 
@@ -148,16 +158,15 @@ mod parser_e2e_test {
 
         let inputs = [
             "5*",
-            "4 5",
             "(5+10",
-            "3??"
+            "??",
         ];
         
 
         let expected = [
             ParserError::ExpectedLiteral(2),
-            ParserError::ExpectedOperator(1),
             ParserError::UnterminatedGrouping(4),
+            ParserError::ExpectedLiteral(1),
         ];
 
         for (input, output) in std::iter::zip(inputs, expected).into_iter() {
@@ -166,8 +175,9 @@ mod parser_e2e_test {
                 Err((e, i)) => panic!("Tokenizer error: {e} at index {i}")
             };
 
-            // NOTE: This will return a result in the future
-            match parse(&tokens) {
+            let mut parser = Parser::new(&tokens);
+
+            match parse(&mut parser) {
                 Ok(v) => panic!("Should failed, instead got value {v}"),
                 Err(e) => assert_eq!(e, output)
             };

@@ -7,7 +7,7 @@
 use std::fmt;
 use crate::{parser::{ast::{Expression, LiteralKind}}, token::Token};
 
-struct Parser<'a> {
+pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     index: usize
 }
@@ -62,6 +62,7 @@ pub enum ParserError {
     ExpectedOperator(usize),
     ExpectedLiteral(usize),
     SyntaxError(usize),
+    ExpectedToken(usize, Token),
 }
 
 
@@ -75,6 +76,7 @@ impl fmt::Display for ParserError {
             ParserError::ExpectedOperator(x) => write!(f, "Expected operator at {x}"),
             ParserError::ExpectedLiteral(x) => write!(f, "Expected literal at {x}"),
             ParserError::SyntaxError(x) => write!(f, "Syntax error at {x}"),
+            ParserError::ExpectedToken(x, t) => write!(f, "Expected token {t} at {x}"),
         }
     }
 }
@@ -82,16 +84,79 @@ impl fmt::Display for ParserError {
 
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
+        // IF statement
+        Token::If => {
+            let condition = parse_expr(p, 0)?;
+
+            // {NOTE 1}
+            // If there isn't a { after the condition, keep consuming tokens until one is found.
+            // Doing this since there might be a } later which causes another error
+            if p.peek() != Token::CurlyL {
+                let index = p.index();
+                while p.peek() != Token::CurlyL && p.peek() != Token::EOF {
+                    p.consume();
+                }
+                return Err(ParserError::ExpectedToken(index, Token::CurlyL));
+            }
+            p.consume();
+
+            let statement = parse_expr(p, 0)?;
+
+            // Look for '{NOTE 1}' above
+            if p.peek() != Token::CurlyR {
+                let index = p.index();
+                while p.peek() != Token::CurlyR && p.peek() != Token::EOF {
+                    p.consume();
+                }
+                return Err(ParserError::ExpectedToken(index, Token::CurlyR));
+            }
+            p.consume();
+
+            if p.peek() != Token::Else {
+                return Ok(Box::new( Expression::Ternary(condition, statement, Box::new(Expression::Literal(LiteralKind::Void))) ));
+            }
+
+            p.consume();
+
+            Ok(Box::new( Expression::Ternary(condition, statement, parse_expr(p, 0)?) ))
+        },
+
+        Token::CurlyL => {
+            let expr = parse_expr(p, 0)?;
+
+            if p.peek() != Token::CurlyR {
+                let index = p.index();
+
+                // Look for '{NOTE 1}' above
+                while p.peek() != Token::CurlyR && p.peek() != Token::EOF {
+                    p.consume();
+                }
+
+                return Err(ParserError::ExpectedToken(index, Token::CurlyR));
+            }
+            p.consume();
+
+            Ok(expr)
+        },
         Token::LiteralInteger(x) => Ok(Box::new( Expression::Literal(LiteralKind::Integer(x))  )),
         Token::LiteralReal(x) => Ok(Box::new( Expression::Literal(LiteralKind::Real(x))  )),
         Token::LiteralBoolean(x) => Ok(Box::new( Expression::Literal(LiteralKind::Boolean(x))  )),
+        Token::LiteralVoid => Ok(Box::new( Expression::Literal(LiteralKind::Void)  )),
         Token::Minus => Ok(Box::new( Expression::UnaryNegation(parse_expr(p, token.precedence())? ) )),
         Token::Plus => Ok(Box::new( Expression::UnaryAddition(parse_expr(p, token.precedence())? ) )),
         Token::ParenL => {
             let expr = parse_expr(p, 0)?;
             match p.next() {
                 Token::ParenR => Ok(Box::new( Expression::Grouping(expr) )),
-                _ => Err(ParserError::UnterminatedGrouping(p.index()))
+                _ => {
+                    let index = p.index();
+
+                    // Look for '{NOTE 1}' above
+                    while p.peek() != Token::ParenR && p.peek() != Token::EOF {
+                        p.consume();
+                    }
+                    Err(ParserError::UnterminatedGrouping(index))
+                }
         } },
         _ => Err(ParserError::ExpectedLiteral(p.index()))
     }
@@ -172,15 +237,7 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
     Ok(left_expr)
 }
 
-pub fn parse(t: &Vec<Token>) -> Result<Box<Expression>, ParserError> {
-    let mut parser = Parser::new(t);
-    let res = parse_expr(&mut parser, 0);
-
-    if res.is_ok() && parser.peek() != Token::EOF {
-        Err(ParserError::ExpectedOperator(parser.index()))
-    }else {
-        res
-    }
-
+pub fn parse(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+    parse_expr(p, 0)
 }
 

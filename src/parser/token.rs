@@ -27,14 +27,21 @@ pub enum Token {
     LiteralInteger(i32),
     LiteralReal(f32),
     LiteralBoolean(bool),
+    LiteralVoid,
 
     Period,
     Plus,
     Minus,
     Star,
     Slash,
+
     ParenR,
     ParenL,
+    CurlyR,
+    CurlyL,
+
+    If,
+    Else,
 
     GreaterThan,
     LessThan,
@@ -56,6 +63,8 @@ impl Token {
 
             Token::LiteralInteger(_) => 0,
             Token::LiteralReal(_) => 0,
+            Token::LiteralBoolean(_) => 0,
+            Token::LiteralVoid => 0,
 
             Token::GreaterThan => 2,
             Token::LessThan => 2,
@@ -85,12 +94,15 @@ impl fmt::Display for Token {
             Token::LiteralInteger(x) => write!(f, "LiteralInteger({x})"),
             Token::LiteralReal(x) => write!(f, "LiteralReal({x})"),
             Token::LiteralBoolean(x) => write!(f, "LiteralReal({x})"),
+            Token::LiteralVoid => write!(f, "LiteralVoid(Void)"),
             Token::Plus => write!(f, "Plus(+)"),
             Token::Minus => write!(f, "Minus(-)"),
             Token::Star => write!(f, "Star(*)"),
             Token::Slash => write!(f, "Slash(/)"),
             Token::ParenR => write!(f, "ParenR())"),
             Token::ParenL => write!(f, "Slash(()"),
+            Token::CurlyR => write!(f, "CurlyR(}})"),
+            Token::CurlyL => write!(f, "CurlyL({{)"),
             Token::Period => write!(f, "Period(.)"),
             Token::GreaterThan => write!(f, "GreaterThan(>)"),
             Token::LessThan => write!(f, "LessThan(<)"),
@@ -100,6 +112,8 @@ impl fmt::Display for Token {
             Token::Colon => write!(f, "Colon(:)"),
             Token::EOF => write!(f, "EOF"),
             Token::Space => write!(f, " "),
+            Token::If => write!(f, "If"),
+            Token::Else => write!(f, "Else"),
         }
     }
 }
@@ -112,6 +126,8 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         '/' => Ok(Token::Slash),
         '(' => Ok(Token::ParenL),
         ')' => Ok(Token::ParenR),
+        '{' => Ok(Token::CurlyL),
+        '}' => Ok(Token::CurlyR),
         '.' => Ok(Token::Period),
         '>' => Ok(Token::GreaterThan),
         '<' => Ok(Token::LessThan),
@@ -175,6 +191,9 @@ fn parse_identifier_or_keyword(chs: &mut Peekable<CharIndices>) -> Result<Token,
     match identifier.as_str()  {
         "true" => Ok(Token::LiteralBoolean(true)),
         "false" => Ok(Token::LiteralBoolean(false)),
+        "if" => Ok(Token::If),
+        "else" => Ok(Token::Else),
+        "Void" => Ok(Token::LiteralVoid),
         _ => Err(TokenizerError::UndefinedIdentifier( identifier.into_boxed_str()  ))
     }
 

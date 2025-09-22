@@ -1,16 +1,12 @@
 #![allow(dead_code)] 
 
-use crate::ast::Expression;
-use crate::parser::parser::Parser;
+use crate::ast::{Expression, LiteralKind, AstError};
+use crate::parser::parser::{parse, Parser, ParserError};
+use crate::token::{*};
+
 use std::fmt;
 use std::path::Path;
-
-use crate::ast::LiteralKind;
-use crate::parser::parser::ParserError;
-use crate::ast::AstError;
-
-use crate::parser::parser::parse;
-use crate::token::{*};
+use std::collections::HashMap;
 
 
 #[derive(Debug)]
@@ -42,7 +38,28 @@ impl fmt::Display for InterpreterError {
     }
 }
 
-pub fn parse_expressions(input: &str) -> Result< Vec<Result<Box<Expression>, ParserError>>, InterpreterError > {
+
+struct Interpreter<'a> {
+    environment: HashMap<&'a str, LiteralKind>,
+}
+
+impl<'a> Interpreter<'a> {
+    fn new() -> Self {
+        Interpreter { environment: HashMap::with_capacity(10) }
+    }
+
+    fn declare_variable(&mut self, name: &'a str, value: LiteralKind) {
+        self.environment.insert(name, value);
+    }
+
+    fn get_variable(&mut self, name: &'a str) -> Option<&LiteralKind> {
+        self.environment.get(name)
+    }
+}
+
+
+
+pub fn interpret_as_exprs(input: &str) -> Result<Vec<Result<Box<Expression>, ParserError>>, InterpreterError> {
 
     let tokens = match tokenize(input) {
         Ok(v) => v,
@@ -57,10 +74,6 @@ pub fn parse_expressions(input: &str) -> Result< Vec<Result<Box<Expression>, Par
     }
 
     Ok(exprs)
-//    match ast.evaluate() {
-//        Ok(v) => Ok(v),
-//        Err(e) => Err( InterpreterError::Ast(e)  )
-//    }
 }
 
 pub fn interpret(input: &str) -> Result<LiteralKind, InterpreterError> {
@@ -96,7 +109,7 @@ pub fn interpret_file(path: &Path) -> InterpreterError {
         Err(_) => return InterpreterError::CouldNotReadFile
     };
 
-    let exprs = match parse_expressions(&input) {
+    let exprs = match interpret_as_exprs(&input) {
         Ok(v) => v,
         Err(_) => panic!("WIP")
     };
@@ -107,20 +120,9 @@ pub fn interpret_file(path: &Path) -> InterpreterError {
                 Ok(r) => println!("{} = {}", v, r),
                 Err(e) => println!("{} = {}", v, e),
             },
-            Err(e) => println!("{}", e)
+            Err(e) => println!("Parser error: {}", e)
         }
     }
-
-//    for line in input.lines() {
-//        if line.len() == 0 {
-//            continue;
-//        }
-//        match interpret(line) {
-//            Ok(v) => println!("{line} = {v}"),
-//            Err(v) => println!("{line} = {v}")
-//        }
-//    }
-
 
     return InterpreterError::NoError;
 }

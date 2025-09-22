@@ -36,29 +36,23 @@ bools, ints or floats.
 Note that there are no block statements, even if you use '{}', there can only
 be a single statement in there. 
 
-There is a special type known as 'Void'. An if statement which evaluates to
-false and has no else clauses will always evaluate to 'Void'. This is a very
-stupid placeholder result which behaves very strangely. It acts as an identity
-element when used with numeric binary operators, but always evaluates to Void
-when used with comparison operators. The plan is to simply abolish this type
-and mandate that all paths evaluate to a tangible value.
-
 ## The supported language thus far
 ```
+Statement -> Statement*
 Statement -> Expr
 Statement -> '{' Statement '}'
 Statement -> Expr '?' Statement ':' Statement
 Statement -> IfStatement
+Statement -> 'let' Identifier '=' Expr
 
 Expr -> Expr['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>=']Expr
 Expr -> (Expr)
 Expr -> Literal
 
-IfStatement -> 'if' Statement '{' Statement '}' ('else' '{' Statement '}')?
+IfStatement -> 'if' Statement '{' Statement '}' 'else' '{' Statement '}'
 
 Literal -> Boolean
 Literal -> Number
-Literal -> 'Void'
 
 Boolean -> ['true'|'false']
 

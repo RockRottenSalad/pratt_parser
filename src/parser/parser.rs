@@ -101,29 +101,21 @@ fn expect(token: Token, p: &mut Parser) -> Result<(), ParserError> {
     }
 }
 
-fn grouping_expr_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
-    if token != Token::ParenL {
-        return Err(ParserError::ExpectedToken(p.index(), token));
-    }
-
+fn grouping_expr_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     let expr = parse_expr(p, 0)?;
 
     match expect(Token::ParenR, p) {
         Err(e) => match e {
-             ParserError::ExpectedToken(i, _) => return Err(ParserError::UnterminatedGrouping(i)),
-            _ => panic!("Expect should currently only retturn expected token errors")
+            ParserError::ExpectedToken(i, _) => return Err(ParserError::UnterminatedGrouping(i)),
+            _ => panic!("Expect should currently only retturn expected token errors"),
         },
-       Ok(()) => {},
+        Ok(()) => {}
     };
 
     Ok(Box::new(Expression::Grouping(expr)))
 }
 
-fn if_statement_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
-    if token != Token::If {
-        return Err(ParserError::ExpectedToken(p.index(), token));
-    }
-
+fn if_statement_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     let condition = parse_expr(p, 0)?;
 
     expect(Token::CurlyL, p)?;
@@ -132,15 +124,7 @@ fn if_statement_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>,
 
     expect(Token::CurlyR, p)?;
 
-    if p.peek() != Token::Else {
-        return Ok(Box::new(Expression::Ternary(
-            condition,
-            statement,
-            Box::new(Expression::Literal(LiteralKind::Void)),
-        )));
-    }
-
-    p.consume();
+    expect(Token::Else, p)?;
 
     Ok(Box::new(Expression::Ternary(
         condition,
@@ -149,31 +133,21 @@ fn if_statement_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>,
     )))
 }
 
+fn block_statement_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+    let expr = parse_expr(p, 0)?;
+    expect(Token::CurlyR, p)?;
+    Ok(expr)
+}
+
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
         // IF statement
-        Token::If => if_statement_handler(token, p),
+        Token::If => if_statement_handler(p),
+        Token::CurlyL => block_statement_handler(p),
 
-        Token::CurlyL => {
-            let expr = parse_expr(p, 0)?;
-
-            if p.peek() != Token::CurlyR {
-                let index = p.index();
-
-                while p.peek() != Token::CurlyR && p.peek() != Token::EOF {
-                    p.consume();
-                }
-
-                return Err(ParserError::ExpectedToken(index, Token::CurlyR));
-            }
-            p.consume();
-
-            Ok(expr)
-        }
         Token::LiteralInteger(x) => Ok(Box::new(Expression::Literal(LiteralKind::Integer(x)))),
         Token::LiteralReal(x) => Ok(Box::new(Expression::Literal(LiteralKind::Real(x)))),
         Token::LiteralBoolean(x) => Ok(Box::new(Expression::Literal(LiteralKind::Boolean(x)))),
-        Token::LiteralVoid => Ok(Box::new(Expression::Literal(LiteralKind::Void))),
         Token::Minus => Ok(Box::new(Expression::UnaryNegation(parse_expr(
             p,
             token.precedence(),
@@ -182,16 +156,12 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
             p,
             token.precedence(),
         )?))),
-        Token::ParenL => grouping_expr_handler(Token::ParenL, p),
+        Token::ParenL => grouping_expr_handler(p),
         _ => Err(ParserError::ExpectedLiteral(p.index())),
     }
 }
 
-fn tail_handler(
-    token: Token,
-    expr: Box<Expression>,
-    p: &mut Parser,
-) -> Result<Box<Expression>, ParserError> {
+fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
         Token::LiteralInteger(_) => Err(ParserError::ExpectedOperator(p.index())),
         Token::LiteralReal(_) => Err(ParserError::ExpectedOperator(p.index())),
@@ -302,3 +272,4 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
 pub fn parse(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     parse_expr(p, 0)
 }
+

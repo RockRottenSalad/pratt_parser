@@ -27,7 +27,6 @@ pub enum Token {
     LiteralInteger(i32),
     LiteralReal(f32),
     LiteralBoolean(bool),
-    LiteralVoid,
 
     Period,
     Plus,
@@ -64,7 +63,6 @@ impl Token {
             Token::LiteralInteger(_) => 0,
             Token::LiteralReal(_) => 0,
             Token::LiteralBoolean(_) => 0,
-            Token::LiteralVoid => 0,
 
             Token::GreaterThan => 2,
             Token::LessThan => 2,
@@ -90,11 +88,10 @@ impl Token {
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self {
             Token::LiteralInteger(x) => write!(f, "LiteralInteger({x})"),
             Token::LiteralReal(x) => write!(f, "LiteralReal({x})"),
             Token::LiteralBoolean(x) => write!(f, "LiteralReal({x})"),
-            Token::LiteralVoid => write!(f, "LiteralVoid(Void)"),
             Token::Plus => write!(f, "Plus(+)"),
             Token::Minus => write!(f, "Minus(-)"),
             Token::Star => write!(f, "Star(*)"),
@@ -194,7 +191,6 @@ fn parse_identifier_or_keyword(chs: &mut Peekable<CharIndices>) -> Result<Token,
         "false" => Ok(Token::LiteralBoolean(false)),
         "if" => Ok(Token::If),
         "else" => Ok(Token::Else),
-        "Void" => Ok(Token::LiteralVoid),
         _ => Err(TokenizerError::UndefinedIdentifier(
             identifier.into_boxed_str(),
         )),

@@ -95,10 +95,28 @@ fn expect(token: Token, p: &mut Parser) -> Result<(), ParserError> {
         let index = p.index();
         consume_until_token_or_eof(&token, p);
         Err(ParserError::ExpectedToken(index, token))
-    }else {
+    } else {
         p.consume();
-        Ok(()) 
+        Ok(())
     }
+}
+
+fn grouping_expr_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+    if token != Token::ParenL {
+        return Err(ParserError::ExpectedToken(p.index(), token));
+    }
+
+    let expr = parse_expr(p, 0)?;
+
+    match expect(Token::ParenR, p) {
+        Err(e) => match e {
+             ParserError::ExpectedToken(i, _) => return Err(ParserError::UnterminatedGrouping(i)),
+            _ => panic!("Expect should currently only retturn expected token errors")
+        },
+       Ok(()) => {},
+    };
+
+    Ok(Box::new(Expression::Grouping(expr)))
 }
 
 fn if_statement_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
@@ -164,21 +182,7 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
             p,
             token.precedence(),
         )?))),
-        Token::ParenL => {
-            let expr = parse_expr(p, 0)?;
-            match p.next() {
-                Token::ParenR => Ok(Box::new(Expression::Grouping(expr))),
-                _ => {
-                    let index = p.index();
-
-                    // Look for '{NOTE 1}' above
-                    while p.peek() != Token::ParenR && p.peek() != Token::EOF {
-                        p.consume();
-                    }
-                    Err(ParserError::UnterminatedGrouping(index))
-                }
-            }
-        }
+        Token::ParenL => grouping_expr_handler(Token::ParenL, p),
         _ => Err(ParserError::ExpectedLiteral(p.index())),
     }
 }

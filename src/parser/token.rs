@@ -1,4 +1,4 @@
-#![allow(dead_code)] 
+#![allow(dead_code)]
 
 use std::fmt;
 
@@ -10,19 +10,19 @@ use crate::utils::types::Either;
 #[derive(Debug)]
 pub enum TokenizerError {
     IllegalToken(char),
-    UndefinedIdentifier(Box<str>)
+    UndefinedIdentifier(Box<str>),
 }
 
 impl fmt::Display for TokenizerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TokenizerError::IllegalToken(ch) => write!(f, "IllegalToken({ch})"),
-            TokenizerError::UndefinedIdentifier(str) => write!(f, "UndefinedIdentifier({str})")
+            TokenizerError::UndefinedIdentifier(str) => write!(f, "UndefinedIdentifier({str})"),
         }
     }
 }
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     LiteralInteger(i32),
     LiteralReal(f32),
@@ -83,7 +83,7 @@ impl Token {
             Token::Colon => 0,
 
             // Proper precedence for rest either don't matter or are baked directly into the parser
-            _ => 0
+            _ => 0,
         }
     }
 }
@@ -136,14 +136,16 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         '?' => Ok(Token::Question),
         ':' => Ok(Token::Colon),
         ' ' | '\t' | '\n' => Ok(Token::Space),
-        _ => Err(TokenizerError::IllegalToken(ch)) 
+        _ => Err(TokenizerError::IllegalToken(ch)),
     }
 }
 
 fn parse_numeric_literal_new(chs: &mut Peekable<CharIndices>) -> Either<i32, f32> {
     let before_dot = parse_integer_literal(chs);
 
-    if let Some((_, ch)) = chs.peek() && *ch == '.' {
+    if let Some((_, ch)) = chs.peek()
+        && *ch == '.'
+    {
         let _ = chs.next();
 
         let before_dot = before_dot as f32;
@@ -151,11 +153,13 @@ fn parse_numeric_literal_new(chs: &mut Peekable<CharIndices>) -> Either<i32, f32
 
         if after_dot != 0 {
             // TODO: This is a hack, fix it.
-            Either::Right(before_dot + (after_dot as f32) / 10.0_f32.powi((after_dot.ilog10()+1) as i32))
-        }else {
+            Either::Right(
+                before_dot + (after_dot as f32) / 10.0_f32.powi((after_dot.ilog10() + 1) as i32),
+            )
+        } else {
             Either::Right(before_dot)
         }
-    }else {
+    } else {
         Either::Left(before_dot)
     }
 }
@@ -165,10 +169,10 @@ fn parse_integer_literal(chs: &mut Peekable<CharIndices>) -> i32 {
     let mut sum = 0;
 
     while let Some(num) = chs
-        .next_if(|(_, ch)| ch.is_digit(radix) )
-        .map(|(_, ch)| ch.to_digit(radix).unwrap() as i32 ) 
+        .next_if(|(_, ch)| ch.is_digit(radix))
+        .map(|(_, ch)| ch.to_digit(radix).unwrap() as i32)
     {
-        sum = sum*10 + num;
+        sum = sum * 10 + num;
     }
     sum
 }
@@ -176,10 +180,7 @@ fn parse_integer_literal(chs: &mut Peekable<CharIndices>) -> i32 {
 fn parse_identifier_or_keyword(chs: &mut Peekable<CharIndices>) -> Result<Token, TokenizerError> {
     let mut string_builder: Vec<char> = Vec::with_capacity(25);
 
-    while let Some(ch) = chs
-        .next_if(|(_, ch)| ch.is_alphabetic() )
-        .map(|(_, ch)| ch) 
-    {
+    while let Some(ch) = chs.next_if(|(_, ch)| ch.is_alphabetic()).map(|(_, ch)| ch) {
         string_builder.push(ch);
     }
 
@@ -188,15 +189,16 @@ fn parse_identifier_or_keyword(chs: &mut Peekable<CharIndices>) -> Result<Token,
 
     let identifier: String = string_builder.into_iter().collect();
 
-    match identifier.as_str()  {
+    match identifier.as_str() {
         "true" => Ok(Token::LiteralBoolean(true)),
         "false" => Ok(Token::LiteralBoolean(false)),
         "if" => Ok(Token::If),
         "else" => Ok(Token::Else),
         "Void" => Ok(Token::LiteralVoid),
-        _ => Err(TokenizerError::UndefinedIdentifier( identifier.into_boxed_str()  ))
+        _ => Err(TokenizerError::UndefinedIdentifier(
+            identifier.into_boxed_str(),
+        )),
     }
-
 }
 
 pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
@@ -209,28 +211,30 @@ pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
     while let Some((i, ch)) = chs.peek() {
         if ch.is_digit(radix) {
             match parse_numeric_literal_new(&mut chs) {
-                Either::Left(x) => tokens.push( Token::LiteralInteger(x)),
-                Either::Right(x) => tokens.push( Token::LiteralReal(x)),
+                Either::Left(x) => tokens.push(Token::LiteralInteger(x)),
+                Either::Right(x) => tokens.push(Token::LiteralReal(x)),
             }
         } else if ch.is_alphabetic() {
             let index = *i;
             match parse_identifier_or_keyword(&mut chs) {
                 Ok(tok) => tokens.push(tok),
-                Err(e) => return Err((e, index))
+                Err(e) => return Err((e, index)),
             }
         } else {
             match char_to_token(*ch) {
                 Ok(t) => match t {
-                    Token::Space => { chs.next(); },
-                    _ => { tokens.push(t); chs.next(); }
+                    Token::Space => {
+                        chs.next();
+                    }
+                    _ => {
+                        tokens.push(t);
+                        chs.next();
+                    }
                 },
-                Err(e) => return Err((e, *i))
+                Err(e) => return Err((e, *i)),
             }
         }
-
     }
 
     Ok(tokens)
 }
-
-

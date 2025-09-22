@@ -1,15 +1,18 @@
-#![allow(dead_code)] 
+#![allow(dead_code)]
 
 // TODO
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
 // More fault tolerance + should return Result type
 
+use crate::{
+    parser::ast::{Expression, LiteralKind},
+    token::Token,
+};
 use std::fmt;
-use crate::{parser::{ast::{Expression, LiteralKind}}, token::Token};
 
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
-    index: usize
+    index: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -53,10 +56,9 @@ impl<'a> Parser<'a> {
     pub fn index(&self) -> usize {
         self.index
     }
-
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ParserError {
     UnterminatedGrouping(usize),
     ExpectedOperator(usize),
@@ -64,7 +66,6 @@ pub enum ParserError {
     SyntaxError(usize),
     ExpectedToken(usize, Token),
 }
-
 
 // TODO: Since there is a tokens array, that can be used alongside the index to give a better error
 // message. The index of a token doesn't map well to a string. Especially when you factor in the
@@ -81,45 +82,59 @@ impl fmt::Display for ParserError {
     }
 }
 
+fn consume_until_token_or_eof(token: &Token, p: &mut Parser) -> () {
+    if p.peek() != *token {
+        while p.peek() != *token && p.peek() != Token::EOF {
+            p.consume();
+        }
+    }
+}
+
+fn expect(token: Token, p: &mut Parser) -> Result<(), ParserError> {
+    if p.peek() != token {
+        let index = p.index();
+        consume_until_token_or_eof(&token, p);
+        Err(ParserError::ExpectedToken(index, token))
+    }else {
+        p.consume();
+        Ok(()) 
+    }
+}
+
+fn if_statement_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+    if token != Token::If {
+        return Err(ParserError::ExpectedToken(p.index(), token));
+    }
+
+    let condition = parse_expr(p, 0)?;
+
+    expect(Token::CurlyL, p)?;
+
+    let statement = parse_expr(p, 0)?;
+
+    expect(Token::CurlyR, p)?;
+
+    if p.peek() != Token::Else {
+        return Ok(Box::new(Expression::Ternary(
+            condition,
+            statement,
+            Box::new(Expression::Literal(LiteralKind::Void)),
+        )));
+    }
+
+    p.consume();
+
+    Ok(Box::new(Expression::Ternary(
+        condition,
+        statement,
+        parse_expr(p, 0)?,
+    )))
+}
 
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
         // IF statement
-        Token::If => {
-            let condition = parse_expr(p, 0)?;
-
-            // {NOTE 1}
-            // If there isn't a { after the condition, keep consuming tokens until one is found.
-            // Doing this since there might be a } later which causes another error
-            if p.peek() != Token::CurlyL {
-                let index = p.index();
-                while p.peek() != Token::CurlyL && p.peek() != Token::EOF {
-                    p.consume();
-                }
-                return Err(ParserError::ExpectedToken(index, Token::CurlyL));
-            }
-            p.consume();
-
-            let statement = parse_expr(p, 0)?;
-
-            // Look for '{NOTE 1}' above
-            if p.peek() != Token::CurlyR {
-                let index = p.index();
-                while p.peek() != Token::CurlyR && p.peek() != Token::EOF {
-                    p.consume();
-                }
-                return Err(ParserError::ExpectedToken(index, Token::CurlyR));
-            }
-            p.consume();
-
-            if p.peek() != Token::Else {
-                return Ok(Box::new( Expression::Ternary(condition, statement, Box::new(Expression::Literal(LiteralKind::Void))) ));
-            }
-
-            p.consume();
-
-            Ok(Box::new( Expression::Ternary(condition, statement, parse_expr(p, 0)?) ))
-        },
+        Token::If => if_statement_handler(token, p),
 
         Token::CurlyL => {
             let expr = parse_expr(p, 0)?;
@@ -127,7 +142,6 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
             if p.peek() != Token::CurlyR {
                 let index = p.index();
 
-                // Look for '{NOTE 1}' above
                 while p.peek() != Token::CurlyR && p.peek() != Token::EOF {
                     p.consume();
                 }
@@ -137,17 +151,23 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
             p.consume();
 
             Ok(expr)
-        },
-        Token::LiteralInteger(x) => Ok(Box::new( Expression::Literal(LiteralKind::Integer(x))  )),
-        Token::LiteralReal(x) => Ok(Box::new( Expression::Literal(LiteralKind::Real(x))  )),
-        Token::LiteralBoolean(x) => Ok(Box::new( Expression::Literal(LiteralKind::Boolean(x))  )),
-        Token::LiteralVoid => Ok(Box::new( Expression::Literal(LiteralKind::Void)  )),
-        Token::Minus => Ok(Box::new( Expression::UnaryNegation(parse_expr(p, token.precedence())? ) )),
-        Token::Plus => Ok(Box::new( Expression::UnaryAddition(parse_expr(p, token.precedence())? ) )),
+        }
+        Token::LiteralInteger(x) => Ok(Box::new(Expression::Literal(LiteralKind::Integer(x)))),
+        Token::LiteralReal(x) => Ok(Box::new(Expression::Literal(LiteralKind::Real(x)))),
+        Token::LiteralBoolean(x) => Ok(Box::new(Expression::Literal(LiteralKind::Boolean(x)))),
+        Token::LiteralVoid => Ok(Box::new(Expression::Literal(LiteralKind::Void))),
+        Token::Minus => Ok(Box::new(Expression::UnaryNegation(parse_expr(
+            p,
+            token.precedence(),
+        )?))),
+        Token::Plus => Ok(Box::new(Expression::UnaryAddition(parse_expr(
+            p,
+            token.precedence(),
+        )?))),
         Token::ParenL => {
             let expr = parse_expr(p, 0)?;
             match p.next() {
-                Token::ParenR => Ok(Box::new( Expression::Grouping(expr) )),
+                Token::ParenR => Ok(Box::new(Expression::Grouping(expr))),
                 _ => {
                     let index = p.index();
 
@@ -157,30 +177,47 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
                     }
                     Err(ParserError::UnterminatedGrouping(index))
                 }
-        } },
-        _ => Err(ParserError::ExpectedLiteral(p.index()))
+            }
+        }
+        _ => Err(ParserError::ExpectedLiteral(p.index())),
     }
 }
 
-fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+fn tail_handler(
+    token: Token,
+    expr: Box<Expression>,
+    p: &mut Parser,
+) -> Result<Box<Expression>, ParserError> {
     match token {
         Token::LiteralInteger(_) => Err(ParserError::ExpectedOperator(p.index())),
         Token::LiteralReal(_) => Err(ParserError::ExpectedOperator(p.index())),
-        Token::Plus => Ok(Box::new( Expression::BinaryAddition(expr, parse_expr(p, token.precedence())?) )),
-        Token::Minus => Ok(Box::new( Expression::BinarySubtraction(expr, parse_expr(p, token.precedence())?) )),
-        Token::Star => Ok(Box::new( Expression::BinaryMultiplication(expr, parse_expr(p, token.precedence())?) )),
-        Token::Slash => Ok(Box::new( Expression::BinaryDivision(expr, parse_expr(p, token.precedence())?) )),
+        Token::Plus => Ok(Box::new(Expression::BinaryAddition(
+            expr,
+            parse_expr(p, token.precedence())?,
+        ))),
+        Token::Minus => Ok(Box::new(Expression::BinarySubtraction(
+            expr,
+            parse_expr(p, token.precedence())?,
+        ))),
+        Token::Star => Ok(Box::new(Expression::BinaryMultiplication(
+            expr,
+            parse_expr(p, token.precedence())?,
+        ))),
+        Token::Slash => Ok(Box::new(Expression::BinaryDivision(
+            expr,
+            parse_expr(p, token.precedence())?,
+        ))),
 
         Token::Question => {
             let left = parse_expr(p, 0)?;
 
             if p.peek() != Token::Colon {
-                return Err( ParserError::SyntaxError(p.index()) );
-            }else {
+                return Err(ParserError::SyntaxError(p.index()));
+            } else {
                 p.consume();
             }
 
-            // TODO implement expected an expression error and use that here 
+            // TODO implement expected an expression error and use that here
             if p.peek() == Token::EOF {
                 return Err(ParserError::ExpectedLiteral(p.index()));
             }
@@ -188,36 +225,58 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
             let right = parse_expr(p, 0)?;
 
             Ok(Box::new(Expression::Ternary(expr, left, right)))
-        },
-        Token::GreaterThan => 
-            if p.peek() == Token::Equal  {
+        }
+        Token::GreaterThan => {
+            if p.peek() == Token::Equal {
                 p.consume();
-                Ok(Box::new( Expression::GreaterEqualThan(expr, parse_expr(p, token.precedence())?) ))
-            }else {
-                Ok(Box::new( Expression::GreaterThan(expr, parse_expr(p, token.precedence())?) ))
-            },
-        Token::LessThan => 
-            if p.peek() == Token::Equal  {
+                Ok(Box::new(Expression::GreaterEqualThan(
+                    expr,
+                    parse_expr(p, token.precedence())?,
+                )))
+            } else {
+                Ok(Box::new(Expression::GreaterThan(
+                    expr,
+                    parse_expr(p, token.precedence())?,
+                )))
+            }
+        }
+        Token::LessThan => {
+            if p.peek() == Token::Equal {
                 p.consume();
-                Ok(Box::new( Expression::LessEqualThan(expr, parse_expr(p, token.precedence())?) ))
-            }else {
-                Ok(Box::new( Expression::LessThan(expr, parse_expr(p, token.precedence())?) ))
-            },
-        Token::Equal => 
-            if p.peek() == Token::Equal  {
+                Ok(Box::new(Expression::LessEqualThan(
+                    expr,
+                    parse_expr(p, token.precedence())?,
+                )))
+            } else {
+                Ok(Box::new(Expression::LessThan(
+                    expr,
+                    parse_expr(p, token.precedence())?,
+                )))
+            }
+        }
+        Token::Equal => {
+            if p.peek() == Token::Equal {
                 p.consume();
-                Ok(Box::new( Expression::EqualTo(expr, parse_expr(p, token.precedence())?) ))
-            }else {
+                Ok(Box::new(Expression::EqualTo(
+                    expr,
+                    parse_expr(p, token.precedence())?,
+                )))
+            } else {
                 Err(ParserError::SyntaxError(p.index()))
-            },
-        Token::Bang => 
-            if p.peek() == Token::Equal  {
+            }
+        }
+        Token::Bang => {
+            if p.peek() == Token::Equal {
                 p.consume();
-                Ok(Box::new( Expression::NotEqualTo(expr, parse_expr(p, token.precedence())?) ))
-            }else {
+                Ok(Box::new(Expression::NotEqualTo(
+                    expr,
+                    parse_expr(p, token.precedence())?,
+                )))
+            } else {
                 Err(ParserError::SyntaxError(p.index()))
-            },
-        _ =>  {
+            }
+        }
+        _ => {
             println!("TOKEN: {token}");
             Err(ParserError::SyntaxError(p.index()))
         }
@@ -231,7 +290,6 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
     while p.peek().precedence() > expr_precedence {
         current = p.next();
         left_expr = tail_handler(current, left_expr, p)?;
-
     }
 
     Ok(left_expr)
@@ -240,4 +298,3 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
 pub fn parse(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     parse_expr(p, 0)
 }
-

@@ -1,21 +1,33 @@
-
 #[cfg(test)]
 mod tests {
-    use crate::token::{*};
+    use crate::token::*;
 
     #[test]
     fn test_char_to_token_good() {
         let input = ['+', '-', '*', '/', '(', ')', ' ', '\t', '\n'];
         let expected = [
-                Token::Plus, Token::Minus, Token::Star, Token::Slash, Token::ParenL, Token::ParenR,
-                Token::Space, Token::Space, Token::Space
+            Token::Plus,
+            Token::Minus,
+            Token::Star,
+            Token::Slash,
+            Token::ParenL,
+            Token::ParenR,
+            Token::Space,
+            Token::Space,
+            Token::Space,
         ];
 
         for (i, ch) in input.iter().map(|ch| char_to_token(*ch)).enumerate() {
-            assert!(ch.is_ok(), "Checking that mapping the car to a token succeeded");
-            assert_eq!(ch.unwrap(), expected[i], "Checking that the token equals the expected token");
+            assert!(
+                ch.is_ok(),
+                "Checking that mapping the car to a token succeeded"
+            );
+            assert_eq!(
+                ch.unwrap(),
+                expected[i],
+                "Checking that the token equals the expected token"
+            );
         }
-
     }
 
     #[test]
@@ -25,7 +37,10 @@ mod tests {
         let input = ['|', '_', '^', '#', 'a', 'B', '4'];
 
         for ch in input.iter().map(|ch| char_to_token(*ch)) {
-            assert!(ch.is_err(), "Checking that mapping the char to a token failed");
+            assert!(
+                ch.is_err(),
+                "Checking that mapping the char to a token failed"
+            );
         }
     }
 
@@ -57,10 +72,14 @@ mod tests {
 
         let actual = match tokenize(input) {
             Ok(v) => v,
-            Err((e,i)) => panic!("Tokenizer failed to tokenize with error: {e} at index {i}")
+            Err((e, i)) => panic!("Tokenizer failed to tokenize with error: {e} at index {i}"),
         };
 
-        assert_eq!(expected.len(), actual.len(), "Checking that expected length and actual length are equal");
+        assert_eq!(
+            expected.len(),
+            actual.len(),
+            "Checking that expected length and actual length are equal"
+        );
         for (i, tok) in actual.iter().enumerate() {
             assert_eq!(*tok, expected[i]);
         }
@@ -77,13 +96,9 @@ mod tests {
             Err((TokenizerError::IllegalToken(actual_ch), actual_index)) => {
                 assert_eq!(expected_index_error, actual_index);
                 assert_eq!(expected_char_error, actual_ch);
-            },
-            _ => panic!("Should've been an illegal token error")
-
-
-            // Implement this when more error types are added
-//            Err(_) => panic!("Error type should've been IllegalToken")
+            }
+            _ => panic!("Should've been an illegal token error"), // Implement this when more error types are added
+                                                                  //            Err(_) => panic!("Error type should've been IllegalToken")
         }
     }
 }
-

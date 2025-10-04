@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::fmt;
+use std::rc::Rc;
 
 use std::iter::Peekable;
 use std::{str::CharIndices, vec::Vec};
@@ -27,6 +28,8 @@ pub enum Token {
     LiteralInteger(i32),
     LiteralReal(f32),
     LiteralBoolean(bool),
+
+    Identifier(Rc<str>),
 
     Period,
     Plus,
@@ -111,6 +114,7 @@ impl fmt::Display for Token {
             Token::Space => write!(f, " "),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
+            Token::Identifier(str) => write!(f, "Identifier({str})"),
         }
     }
 }
@@ -174,7 +178,7 @@ fn parse_integer_literal(chs: &mut Peekable<CharIndices>) -> i32 {
     sum
 }
 
-fn parse_identifier_or_keyword(chs: &mut Peekable<CharIndices>) -> Result<Token, TokenizerError> {
+fn parse_identifier_or_keyword<'a>(chs: &mut Peekable<CharIndices>) -> Result<Token, TokenizerError> {
     let mut string_builder: Vec<char> = Vec::with_capacity(25);
 
     while let Some(ch) = chs.next_if(|(_, ch)| ch.is_alphabetic()).map(|(_, ch)| ch) {
@@ -191,9 +195,7 @@ fn parse_identifier_or_keyword(chs: &mut Peekable<CharIndices>) -> Result<Token,
         "false" => Ok(Token::LiteralBoolean(false)),
         "if" => Ok(Token::If),
         "else" => Ok(Token::Else),
-        _ => Err(TokenizerError::UndefinedIdentifier(
-            identifier.into_boxed_str(),
-        )),
+        _ => Ok(Token::Identifier(identifier.into_boxed_str().into()))
     }
 }
 

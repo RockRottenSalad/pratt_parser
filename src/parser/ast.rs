@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::fmt;
+use std::result::Result;
 
 #[derive(Debug)]
 pub enum AstError {
@@ -123,6 +124,7 @@ macro_rules! boolean_reduce {
     }
 }
 
+#[derive(Debug)]
 pub enum Expression {
     //Binary(Operator, Box<Expression>, Box<Expression>),
     BinaryAddition(Box<Expression>, Box<Expression>),
@@ -235,3 +237,4 @@ impl fmt::Display for Expression {
         }
     }
 }
+

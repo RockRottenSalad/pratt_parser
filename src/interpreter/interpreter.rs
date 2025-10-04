@@ -3,6 +3,7 @@
 use crate::ast::{Expression, LiteralKind, AstError};
 use crate::parser::parser::{parse, Parser, ParserError};
 use crate::token::{*};
+use crate::interpreter::statement::{*};
 
 use std::fmt;
 use std::path::Path;
@@ -39,25 +40,45 @@ impl fmt::Display for InterpreterError {
 }
 
 
-struct Interpreter<'a> {
-    environment: HashMap<&'a str, LiteralKind>,
+pub struct Environment<'a> {
+    state: HashMap<&'a str, LiteralKind>,
+    parent: Option<Box<Environment<'a>>>
 }
 
-impl<'a> Interpreter<'a> {
-    fn new() -> Self {
-        Interpreter { environment: HashMap::with_capacity(10) }
+impl<'a> Environment<'a> {
+    pub fn new(parent: Option<Box<Environment<'a>>>) -> Box<Self> {
+        Box::new(Environment { state: HashMap::with_capacity(10), parent })
     }
 
-    fn declare_variable(&mut self, name: &'a str, value: LiteralKind) {
-        self.environment.insert(name, value);
+    pub fn parent(&mut self) -> Box<Self> {
+        if self.parent.is_none() {
+            panic!("Called '.parent()' on environment with no parent");
+        }
+
+        let tmp = std::mem::replace(&mut self.parent, None);
+        tmp.unwrap()
     }
 
-    fn get_variable(&mut self, name: &'a str) -> Option<&LiteralKind> {
-        self.environment.get(name)
+    pub fn has_parent(&self) -> bool {
+        self.parent.is_some()
+    }
+
+    pub fn declare_variable(&mut self, name: &'a str, value: LiteralKind) {
+        self.state.insert(name, value);
+    }
+
+    pub fn get_variable(&mut self, name: &'a str) -> Option<&LiteralKind> {
+        self.state.get(name)
+    }
+
+    pub fn variable_exists(&mut self, name: &'a str) -> bool {
+        self.state.contains_key(name)
     }
 }
 
-
+pub fn supress_unused_statement_errors() -> Statement {
+    todo!();
+}
 
 pub fn interpret_as_exprs(input: &str) -> Result<Vec<Result<Box<Expression>, ParserError>>, InterpreterError> {
 

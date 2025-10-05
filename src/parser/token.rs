@@ -44,6 +44,8 @@ pub enum Token {
 
     If,
     Else,
+    Let,
+    Print,
 
     GreaterThan,
     LessThan,
@@ -58,6 +60,18 @@ pub enum Token {
     Colon,
 }
 
+fn token_from_identifier(identifier: &str) -> Option<Token> {
+    match identifier {
+        "true"  => Some(Token::LiteralBoolean(true)),
+        "false" => Some(Token::LiteralBoolean(false)),
+        "if"    => Some(Token::If),
+        "else"  => Some(Token::Else),
+        "let"   => Some(Token::Let),
+        "print"   => Some(Token::Print),
+        _       => None
+    }
+}
+
 impl Token {
     pub fn precedence(self) -> u8 {
         match self {
@@ -66,6 +80,7 @@ impl Token {
             Token::LiteralInteger(_) => 0,
             Token::LiteralReal(_) => 0,
             Token::LiteralBoolean(_) => 0,
+            Token::Identifier(_) => 0,
 
             Token::GreaterThan => 2,
             Token::LessThan => 2,
@@ -106,7 +121,7 @@ impl fmt::Display for Token {
             Token::Period => write!(f, "Period(.)"),
             Token::GreaterThan => write!(f, "GreaterThan(>)"),
             Token::LessThan => write!(f, "LessThan(<)"),
-            Token::Equal => write!(f, "Equal(<)"),
+            Token::Equal => write!(f, "Equal(=)"),
             Token::Bang => write!(f, "Bang(!)"),
             Token::Question => write!(f, "Question(?)"),
             Token::Colon => write!(f, "Colon(:)"),
@@ -115,6 +130,8 @@ impl fmt::Display for Token {
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::Identifier(str) => write!(f, "Identifier({str})"),
+            Token::Let => write!(f, "Let(=)"),
+            Token::Print => write!(f, "Print"),
         }
     }
 }
@@ -178,58 +195,62 @@ fn parse_integer_literal(chs: &mut Peekable<CharIndices>) -> i32 {
     sum
 }
 
-fn parse_identifier_or_keyword<'a>(chs: &mut Peekable<CharIndices>) -> Result<Token, TokenizerError> {
-    let mut string_builder: Vec<char> = Vec::with_capacity(25);
+// NOTE: Explodes if called whilst at EOF
+fn parse_identifier_or_keyword<'a>(chs: &mut Peekable<CharIndices>, text: &str) -> Result<Token, TokenizerError> {
 
-    while let Some(ch) = chs.next_if(|(_, ch)| ch.is_alphabetic()).map(|(_, ch)| ch) {
-        string_builder.push(ch);
-    }
+    let start = match chs.peek() {
+        Some(&(i, _)) => i,
+        None => panic!("'parse_identifier_or_keyword()' was called whilst at EOF - this should never happen")
+    };
+
+    // Why must .take_while() consume the final element which does not meet the predicate?
+    // chs is peekable
+    // that is so annoyingly inconvinent.
+    // If I wanted that behaviour I could just do a .skip(1) after my .take_while()
+    // There is no .rewind(1)
+    let end = {
+        let mut end = 0;
+        while let Some(_) = chs.next_if(|(_, ch)| ch.is_alphabetic()) {
+            end += 1;
+        }
+        start + end
+    };
+
+    let identifier = &text[start..end];
 
     // TODO as more keywords are added, a better way of handing this is needed.
     // Maybe Radix Trie if it gets really bad?
-
-    let identifier: String = string_builder.into_iter().collect();
-
-    match identifier.as_str() {
-        "true" => Ok(Token::LiteralBoolean(true)),
-        "false" => Ok(Token::LiteralBoolean(false)),
-        "if" => Ok(Token::If),
-        "else" => Ok(Token::Else),
-        _ => Ok(Token::Identifier(identifier.into_boxed_str().into()))
+    match token_from_identifier(identifier) {
+        Some(t) => Ok(t),
+        None => Ok(Token::Identifier(identifier.into())),
     }
 }
 
 pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
     let radix = 10;
-    let mut tokens: Vec<Token> = Vec::new();
-    tokens.reserve(text.len());
+    let mut tokens: Vec<Token> = Vec::with_capacity(text.len());
 
     let mut chs = text.char_indices().peekable();
 
-    while let Some((i, ch)) = chs.peek() {
+    while let Some(&(i, ch)) = chs.peek() {
         if ch.is_digit(radix) {
             match parse_numeric_literal_new(&mut chs) {
-                Either::Left(x) => tokens.push(Token::LiteralInteger(x)),
-                Either::Right(x) => tokens.push(Token::LiteralReal(x)),
+                Either::Left(integer) => tokens.push(Token::LiteralInteger(integer)),
+                Either::Right(real) => tokens.push(Token::LiteralReal(real)),
             }
         } else if ch.is_alphabetic() {
-            let index = *i;
-            match parse_identifier_or_keyword(&mut chs) {
+            match parse_identifier_or_keyword(&mut chs, text) {
                 Ok(tok) => tokens.push(tok),
-                Err(e) => return Err((e, index)),
+                Err(e) => return Err((e, i)),
             }
         } else {
-            match char_to_token(*ch) {
+            chs.next();
+            match char_to_token(ch) {
+                Err(e) => return Err((e, i)),
                 Ok(t) => match t {
-                    Token::Space => {
-                        chs.next();
-                    }
-                    _ => {
-                        tokens.push(t);
-                        chs.next();
-                    }
+                    Token::Space => { /* do nothing */ },
+                    _            => tokens.push(t),
                 },
-                Err(e) => return Err((e, *i)),
             }
         }
     }

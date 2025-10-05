@@ -23,7 +23,7 @@ mod ast_tests {
             Box::new(Expression::Literal(LiteralKind::Integer(9))),
         );
 
-        match ast.evaluate() {
+        match ast.evaluate(None) {
             Ok(actual) => assert_eq!(actual, LiteralKind::Integer(expected)),
             Err(e) => panic!("Failed to evaluate AST, got error: {:?}", e),
         }
@@ -42,7 +42,7 @@ mod ast_tests {
             Box::new(Expression::Literal(LiteralKind::Integer(10))),
         );
 
-        match ast.evaluate() {
+        match ast.evaluate(None) {
             Ok(actual) => match actual {
                 LiteralKind::Real(x) => assert!((x - expected).abs() < 0.01),
                 _ => panic!("Expected real"),
@@ -68,7 +68,7 @@ mod ast_tests {
             )),
         );
 
-        match ast.evaluate() {
+        match ast.evaluate(None) {
             Ok(actual) => match actual {
                 LiteralKind::Boolean(x) => assert!(x),
                 _ => panic!("Expected boolean"),
@@ -87,7 +87,7 @@ mod ast_tests {
             )),
         );
 
-        match ast.evaluate() {
+        match ast.evaluate(None) {
             Ok(v) => panic!("Should have failed due to divsion by zero, got value {}", v),
             Err(e) => match e {
                 AstError::DivisionByZero => {}
@@ -98,7 +98,7 @@ mod ast_tests {
         // Parser no longer allows for this
         //        let ast = Expression::Unary(Operator::Division, Box::new(Expression::Literal(LiteralKind::Integer(10))));
         //
-        //        match ast.evaluate() {
+        //        match ast.evaluate(None) {
         //            Ok(v) => panic!("Should have failed due to illegal unary operator error, got value {}", v),
         //            Err(e) => match e {
         //                AstError::IllegalUnaryOperator => {},

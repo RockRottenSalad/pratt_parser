@@ -1,14 +1,15 @@
-#![allow(dead_code)] 
+#![allow(dead_code)]
 
-use crate::ast::{Expression, LiteralKind, AstError};
-use crate::parser::parser::{parse, Parser, ParserError};
-use crate::token::{*};
-use crate::interpreter::statement::{*};
+use crate::ast::{AstError, Expression, LiteralKind};
+use crate::interpreter::statement::*;
+use crate::parser::parser::{Parser, ParserError, parse_expression, parse_statement};
+use crate::token::*;
 
+use std::rc::Rc;
+
+use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
-use std::collections::HashMap;
-
 
 #[derive(Debug)]
 pub enum InterpreterError {
@@ -21,7 +22,7 @@ pub enum InterpreterError {
     FileNotFound,
     CouldNotReadFile,
 
-    ExpectedOneExpression
+    ExpectedOneExpression,
 }
 
 impl fmt::Display for InterpreterError {
@@ -39,15 +40,17 @@ impl fmt::Display for InterpreterError {
     }
 }
 
-
-pub struct Environment<'a> {
-    state: HashMap<&'a str, LiteralKind>,
-    parent: Option<Box<Environment<'a>>>
+pub struct Environment {
+    state: HashMap<Rc<str>, LiteralKind>,
+    parent: Option<Box<Environment>>,
 }
 
-impl<'a> Environment<'a> {
-    pub fn new(parent: Option<Box<Environment<'a>>>) -> Box<Self> {
-        Box::new(Environment { state: HashMap::with_capacity(10), parent })
+impl Environment {
+    pub fn new(parent: Option<Box<Environment>>) -> Box<Self> {
+        Box::new(Environment {
+            state: HashMap::with_capacity(10),
+            parent,
+        })
     }
 
     pub fn parent(&mut self) -> Box<Self> {
@@ -63,15 +66,18 @@ impl<'a> Environment<'a> {
         self.parent.is_some()
     }
 
-    pub fn declare_variable(&mut self, name: &'a str, value: LiteralKind) {
-        self.state.insert(name, value);
+    pub fn declare_variable(&mut self, name: &str, value: LiteralKind) {
+        self.state.insert(name.into(), value);
     }
 
-    pub fn get_variable(&mut self, name: &'a str) -> Option<&LiteralKind> {
-        self.state.get(name)
+    pub fn get_variable(&self, name: &str) -> Option<LiteralKind> {
+        match self.state.get(name) {
+            Some(v) => Some(v.clone()),
+            None => None,
+        }
     }
 
-    pub fn variable_exists(&mut self, name: &'a str) -> bool {
+    pub fn variable_exists(&mut self, name: &str) -> bool {
         self.state.contains_key(name)
     }
 }
@@ -80,43 +86,63 @@ pub fn supress_unused_statement_errors() -> Statement {
     todo!();
 }
 
-pub fn interpret_as_exprs(input: &str) -> Result<Vec<Result<Box<Expression>, ParserError>>, InterpreterError> {
-
+pub fn interpret_as_exprs(
+    input: &str,
+) -> Result<Vec<Result<Box<Expression>, ParserError>>, InterpreterError> {
     let tokens = match tokenize(input) {
         Ok(v) => v,
-        Err((e,_)) => return Err( InterpreterError::Tokenizer(e) )
+        Err((e, _)) => return Err(InterpreterError::Tokenizer(e)),
     };
 
     let mut parser = Parser::new(&tokens);
     let mut exprs: Vec<Result<Box<Expression>, ParserError>> = Vec::with_capacity(10);
 
     while parser.peek() != Token::EOF {
-        exprs.push(parse(&mut parser));
+        exprs.push(parse_expression(&mut parser));
     }
 
     Ok(exprs)
 }
 
-pub fn interpret(input: &str) -> Result<LiteralKind, InterpreterError> {
+pub fn interpret_as_statements(
+    input: &str,
+) -> Result<Vec<Result<Box<Statement>, ParserError>>, InterpreterError> {
     let tokens = match tokenize(input) {
         Ok(v) => v,
-        Err((e,_)) => return Err( InterpreterError::Tokenizer(e) )
+        Err((e, _)) => return Err(InterpreterError::Tokenizer(e)),
     };
 
     let mut parser = Parser::new(&tokens);
-    let expr = parse(&mut parser);
+    let mut stms: Vec<Result<Box<Statement>, ParserError>> = Vec::with_capacity(10);
 
-    if parser.peek() != Token::EOF {
-        return Err(InterpreterError::ExpectedOneExpression);
+    while parser.peek() != Token::EOF {
+        stms.push(parse_statement(&mut parser));
     }
 
+    Ok(stms)
+}
 
-    match expr {
-        Ok(v) => match v.evaluate() {
-            Ok(r) => Ok(r),
-            Err(e) => Err(InterpreterError::Ast(e)) 
-        },
-        Err(e) => Err(InterpreterError::Parser(e))
+pub fn interpret(input: &str, env: &mut Environment) -> Result<(), InterpreterError> {
+    let tokens = match tokenize(input) {
+        Ok(v) => v,
+        Err((e, _)) => return Err(InterpreterError::Tokenizer(e)),
+    };
+
+    let mut parser = Parser::new(&tokens);
+    let stm = parse_statement(&mut parser);
+
+    match stm {
+        Ok(v) => {
+            if parser.peek() != Token::EOF {
+                Err(InterpreterError::ExpectedOneExpression)
+            } else {
+                match v.execute(env) {
+                    Err(e) => Err(InterpreterError::Ast(e)),
+                    _ => Ok(()),
+                }
+            }
+        }
+        Err(e) => Err(InterpreterError::Parser(e)),
     }
 }
 
@@ -124,29 +150,28 @@ pub fn interpret_file(path: &Path) -> InterpreterError {
     if !path.exists() {
         return InterpreterError::FileNotFound;
     }
-    
+
     let input = match std::fs::read_to_string(path) {
         Ok(v) => v,
-        Err(_) => return InterpreterError::CouldNotReadFile
+        Err(_) => return InterpreterError::CouldNotReadFile,
     };
 
-    let exprs = match interpret_as_exprs(&input) {
+    let exprs = match interpret_as_statements(&input) {
         Ok(v) => v,
-        Err(_) => panic!("WIP")
+        Err(e) => return e,
     };
+
+    let mut env = Environment::new(None);
 
     for expr in exprs {
         match expr {
-            Ok(v) => match v.evaluate() {
-                Ok(r) => println!("{} = {}", v, r),
-                Err(e) => println!("{} = {}", v, e),
+            Ok(v) => match v.execute(&mut env) {
+                Ok(_) => {}
+                Err(e) => println!("Parser error: {}", e),
             },
-            Err(e) => println!("Parser error: {}", e)
-        }
+            Err(e) => println!("Parser error: {}", e),
+        };
     }
 
     return InterpreterError::NoError;
 }
-
-
-

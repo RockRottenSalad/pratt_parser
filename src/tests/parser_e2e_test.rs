@@ -7,7 +7,7 @@ mod parser_e2e_test {
     use crate::ast::LiteralKind;
     use crate::parser::parser::Parser;
     use crate::parser::parser::ParserError;
-    use crate::parser::parser::parse;
+    use crate::parser::parser::parse_expression;
     use crate::token::*;
 
     #[test]
@@ -32,28 +32,12 @@ mod parser_e2e_test {
 
             let mut parser = Parser::new(&tokens);
 
-            let ast = match parse(&mut parser) {
+            let ast = match parse_expression(&mut parser) {
                 Ok(v) => v,
-                Err(e) => match e {
-                    ParserError::UnterminatedGrouping(index) => {
-                        panic!("Unterminated grouping at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedOperator(index) => {
-                        panic!("Expected operator at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedLiteral(index) => {
-                        panic!("Expected literal at index {index} in {:?}", tokens)
-                    }
-                    ParserError::SyntaxError(index) => {
-                        panic!("Syntax error at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedToken(index, tok) => {
-                        panic!("Expected {tok} at index {index} in {:?}", tokens)
-                    }
-                },
+                Err(e) => panic!("{e} in {:?}", tokens),
             };
 
-            match ast.evaluate() {
+            match ast.evaluate(None) {
                 Ok(v) => assert_eq!(v, LiteralKind::Integer(output)),
                 Err(e) => panic!("Syntax error: {:?}", e),
             }
@@ -80,28 +64,12 @@ mod parser_e2e_test {
 
             let mut parser = Parser::new(&tokens);
 
-            let ast = match parse(&mut parser) {
+            let ast = match parse_expression(&mut parser) {
                 Ok(v) => v,
-                Err(e) => match e {
-                    ParserError::UnterminatedGrouping(index) => {
-                        panic!("Unterminated grouping at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedOperator(index) => {
-                        panic!("Expected operator at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedLiteral(index) => {
-                        panic!("Expected literal at index {index} in {:?}", tokens)
-                    }
-                    ParserError::SyntaxError(index) => {
-                        panic!("Syntax error at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedToken(index, tok) => {
-                        panic!("Expected {tok} at index {index} in {:?}", tokens)
-                    }
-                },
+                Err(e) => panic!("{e} in {:?}", tokens)
             };
 
-            match ast.evaluate() {
+            match ast.evaluate(None) {
                 Ok(v) => match v {
                     LiteralKind::Real(x) => assert!((x - output).abs() < 0.01),
                     _ => panic!("Expected a real"),
@@ -125,28 +93,12 @@ mod parser_e2e_test {
 
             let mut parser = Parser::new(&tokens);
 
-            let ast = match parse(&mut parser) {
+            let ast = match parse_expression(&mut parser) {
                 Ok(v) => v,
-                Err(e) => match e {
-                    ParserError::UnterminatedGrouping(index) => {
-                        panic!("Unterminated grouping at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedOperator(index) => {
-                        panic!("Expected operator at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedLiteral(index) => {
-                        panic!("Expected literal at index {index} in {:?}", tokens)
-                    }
-                    ParserError::SyntaxError(index) => {
-                        panic!("Syntax error at index {index} in {:?}", tokens)
-                    }
-                    ParserError::ExpectedToken(index, tok) => {
-                        panic!("Expected {tok} at index {index} in {:?}", tokens)
-                    }
-                },
+                Err(e) => panic!("{e} in {:?}", tokens),
             };
 
-            match ast.evaluate() {
+            match ast.evaluate(None) {
                 Ok(v) => match v {
                     LiteralKind::Boolean(x) => assert!(x == output),
                     _ => panic!("Expected a boolean"),
@@ -178,8 +130,8 @@ mod parser_e2e_test {
 
             let mut parser = Parser::new(&tokens);
 
-            match parse(&mut parser) {
-                Ok(v) => match v.evaluate().unwrap() {
+            match parse_expression(&mut parser) {
+                Ok(v) => match v.evaluate(None).unwrap() {
                     LiteralKind::Integer(x) => assert_eq!(x, output),
                     _ => panic!("Unexpected type")
                 },
@@ -207,10 +159,11 @@ mod parser_e2e_test {
 
             let mut parser = Parser::new(&tokens);
 
-            match parse(&mut parser) {
+            match parse_expression(&mut parser) {
                 Ok(v) => panic!("Should failed, instead got value {v}"),
                 Err(e) => assert_eq!(e, output),
             };
         }
     }
 }
+

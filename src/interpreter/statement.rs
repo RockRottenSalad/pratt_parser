@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::ast::{Expression, LiteralKind};
+use crate::ast::{Expression, AstError};
 use crate::interpreter::interpreter::Environment;
 use std::fmt;
 use std::rc::Rc;
@@ -12,14 +12,19 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub fn execute<'a>(&'a self, env: &mut Environment<'a>) {
+    pub fn execute<'a>(&'a self, env: &mut Environment) -> Result<(), AstError>{
         match self {
-            Statement::Print(expr) => println!("{}", expr.evaluate().unwrap_or_else(|_| LiteralKind::Integer(0))), // <- TODO: Fix this
-            Statement::Assignment(var, expr) => match expr.evaluate() {
-                Ok(x) => env.declare_variable(var, x),
-                Err(..) => env.declare_variable(var, LiteralKind::Integer(0)), // <- TODO: Fix this
+            Statement::Print(expr) => match expr.evaluate(Some(env)) {
+                Ok(v) => println!("{v}"),
+                Err(e) => return Err(e),
             },
-        }
+            Statement::Assignment(var, expr) => match expr.evaluate(Some(env)) {
+                Ok(x) => env.declare_variable(&Rc::clone(var), x),
+                Err(e) => return Err(e),
+            },
+        };
+
+        Ok(())
     }
 }
 

@@ -7,7 +7,7 @@ The plan is to turn this into a simple interpreted (maybe functional) language.
 
 ## Using the program
 
-In not-so-good repl mode. There is no support for arrow keys.
+In not-so-good repl mode. There is no support for arrow keys. Exit with Ctrl-C.
 ```
 cargo run -- cli
 ```
@@ -21,8 +21,10 @@ cargo run -- demo_files/example.txt
 
 ## Notes about latest commits
 
-Booleans, ternary operators and if statements have been recently added and are
-error prone. The '!' negation operator does not exist yet, use '-' for negating
+Booleans, ternary operators, if statements and variables have been recently
+added and are error prone.
+
+The '!' negation operator does not exist yet, use '-' for negating
 booleans.
 
 Using numeric operators with booleans will implicitly typecast the boolean to an
@@ -33,23 +35,32 @@ be considered true in the ternary operator and if statement. Although it may
 not seem like it, internally booleans and numerics are in fact represented as
 bools, ints or floats.
 
-Note that there are no block statements, even if you use '{}', there can only
-be a single statement in there. 
 
 ## The supported language thus far
+
+Note that the if statement is actually not a proper if statement, but is
+currently implemented as a ternary expression. This will be changed.
+
+Variables must have values. The 'let' keyword must be used everytime, even when
+changing pre-existing variable, the old value is simply overriden.
+The concept of scope does not exist yet. All variables are global.
+
 ```
 Statement -> Statement*
 Statement -> Expr
-Statement -> '{' Statement '}'
-Statement -> Expr '?' Statement ':' Statement
-Statement -> IfStatement
-Statement -> 'let' Identifier '=' Expr
+Statement -> '{' Expr '}' # Statements in blocks coming soon
+Statement -> 'let' Identifier '=' Expr 
+Statement -> print 'Expr'
+
+Identifier -> ['a'-'z'|'A'-'Z']+
 
 Expr -> Expr['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>=']Expr
 Expr -> (Expr)
 Expr -> Literal
+Expr -> IfStatement # Not a real statement, just a placeholder
+Expr -> Expr '?' Expr ':' Expr
 
-IfStatement -> 'if' Statement '{' Statement '}' 'else' '{' Statement '}'
+IfStatement -> 'if' Expr '{' Expr '}' 'else' '{' Expr '}'
 
 Literal -> Boolean
 Literal -> Number
@@ -59,7 +70,7 @@ Boolean -> ['true'|'false']
 Number -> Integer
 Number -> Real
 
-Integer -> ['+'|'-']*[0-9]+
-Real -> ['+'|'-']*[0-9]+'.'[0-9]*
+Integer -> ['+'|'-']*['0'-'9']+
+Real -> ['+'|'-']*['0'-'9']+'.'['0'-'9']*
 ```
 

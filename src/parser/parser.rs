@@ -4,6 +4,7 @@
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
 // More fault tolerance + should return Result type
 
+use crate::interpreter::statement::Statement;
 use crate::{
     parser::ast::{Expression, LiteralKind},
     token::Token,
@@ -63,8 +64,11 @@ pub enum ParserError {
     UnterminatedGrouping(usize),
     ExpectedOperator(usize),
     ExpectedLiteral(usize),
+    ExpectedIdentifier(usize),
     SyntaxError(usize),
     ExpectedToken(usize, Token),
+
+    ExpectedStatement(usize),
 }
 
 // TODO: Since there is a tokens array, that can be used alongside the index to give a better error
@@ -73,11 +77,14 @@ pub enum ParserError {
 impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ParserError::UnterminatedGrouping(x) => write!(f, "Unterminated grouping at {x}"),
-            ParserError::ExpectedOperator(x) => write!(f, "Expected operator at {x}"),
-            ParserError::ExpectedLiteral(x) => write!(f, "Expected literal at {x}"),
-            ParserError::SyntaxError(x) => write!(f, "Syntax error at {x}"),
-            ParserError::ExpectedToken(x, t) => write!(f, "Expected token {t} at {x}"),
+            ParserError::UnterminatedGrouping(x) => write!(f, "Unterminated grouping at token {x}"),
+            ParserError::ExpectedOperator(x) => write!(f, "Expected operator at token {x}"),
+            ParserError::ExpectedLiteral(x) => write!(f, "Expected literal at token {x}"),
+            ParserError::ExpectedIdentifier(x) => write!(f, "Expected identifier at token {x}"),
+            ParserError::SyntaxError(x) => write!(f, "Syntax error at token {x}"),
+            ParserError::ExpectedToken(x, t) => write!(f, "Expected token {t} at token {x}"),
+
+            ParserError::ExpectedStatement(x) => write!(f, "Expected statement at token {x}"),
         }
     }
 }
@@ -90,14 +97,13 @@ fn consume_until_token_or_eof(token: &Token, p: &mut Parser) -> () {
     }
 }
 
-fn expect(token: Token, p: &mut Parser) -> Result<(), ParserError> {
+fn expect(token: Token, p: &mut Parser) -> Result<Token, ParserError> {
     if p.peek() != token {
         let index = p.index();
         consume_until_token_or_eof(&token, p);
         Err(ParserError::ExpectedToken(index, token))
     } else {
-        p.consume();
-        Ok(())
+        Ok(p.next())
     }
 }
 
@@ -109,7 +115,7 @@ fn grouping_expr_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError>
             ParserError::ExpectedToken(i, _) => return Err(ParserError::UnterminatedGrouping(i)),
             _ => panic!("Expect should currently only retturn expected token errors"),
         },
-        Ok(()) => {}
+        Ok(_) => {}
     };
 
     Ok(Box::new(Expression::Grouping(expr)))
@@ -148,6 +154,9 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
         Token::LiteralInteger(x) => Ok(Box::new(Expression::Literal(LiteralKind::Integer(x)))),
         Token::LiteralReal(x) => Ok(Box::new(Expression::Literal(LiteralKind::Real(x)))),
         Token::LiteralBoolean(x) => Ok(Box::new(Expression::Literal(LiteralKind::Boolean(x)))),
+
+        Token::Identifier(x) => Ok(Box::new(Expression::Reference(x))),
+
         Token::Minus => Ok(Box::new(Expression::UnaryNegation(parse_expr(
             p,
             token.precedence(),
@@ -236,7 +245,7 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
                     parse_expr(p, token.precedence())?,
                 )))
             } else {
-                Err(ParserError::SyntaxError(p.index()))
+                Err(ParserError::ExpectedToken(p.index(), Token::Equal))
             }
         }
         Token::Bang => {
@@ -250,10 +259,7 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
                 Err(ParserError::SyntaxError(p.index()))
             }
         }
-        _ => {
-            println!("TOKEN: {token}");
-            Err(ParserError::SyntaxError(p.index()))
-        }
+        _ => Err(ParserError::SyntaxError(p.index()))
     }
 }
 
@@ -269,7 +275,33 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
     Ok(left_expr)
 }
 
-pub fn parse(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+    let id = match p.next() {
+        Token::Identifier(str) => str,
+        _ => return Err(ParserError::ExpectedIdentifier(p.index() - 1))
+    };
+
+    expect(Token::Equal, p)?;
+
+    Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?)))
+}
+
+fn print_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+    Ok(Box::new(Statement::Print(parse_expr(p, 0)?)))
+}
+
+
+pub fn parse_expression(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     parse_expr(p, 0)
 }
+
+pub fn parse_statement(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+    match p.peek() {
+        Token::Let   => {p.consume(); let_statement_handler(p)},
+        Token::Print => {p.consume(); print_statement_handler(p)},
+        // For maintaing backwards compat -- should Err in future
+        _ => print_statement_handler(p)
+    }
+}
+
 

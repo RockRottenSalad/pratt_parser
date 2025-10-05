@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::Environment;
+use std::rc::Rc;
 use std::fmt;
 use std::result::Result;
 
@@ -7,6 +9,7 @@ use std::result::Result;
 pub enum AstError {
     DivisionByZero,
     IllegalUnaryOperator,
+    UnresolvedReference,
 }
 
 impl fmt::Display for AstError {
@@ -14,11 +17,12 @@ impl fmt::Display for AstError {
         match self {
             AstError::DivisionByZero => write!(f, "Division by zero"),
             AstError::IllegalUnaryOperator => write!(f, "Illegal unary operator"),
+            AstError::UnresolvedReference => write!(f, "Unresolved Reference"),
         }
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum LiteralKind {
     Integer(i32),
     Real(f32),
@@ -147,65 +151,76 @@ pub enum Expression {
 
     Grouping(Box<Expression>),
     Literal(LiteralKind),
+
+    Reference(Rc<str>),
 }
 
 impl Expression {
-    pub fn evaluate(&self) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, env: Option<&Environment>) -> Result<LiteralKind, AstError> {
         match self {
             Expression::Literal(w) => Ok(w.clone()),
-            Expression::Grouping(expr) => expr.evaluate(),
+            Expression::Grouping(expr) => expr.evaluate(env),
             Expression::BinaryAddition(left, right) => {
-                Ok(numeric_reduce!(+, left.evaluate()?, right.evaluate()?))
+                Ok(numeric_reduce!(+, left.evaluate(env)?, right.evaluate(env)?))
             }
             Expression::BinarySubtraction(left, right) => {
-                Ok(numeric_reduce!(-, left.evaluate()?, right.evaluate()?))
+                Ok(numeric_reduce!(-, left.evaluate(env)?, right.evaluate(env)?))
             }
             Expression::BinaryMultiplication(left, right) => {
-                Ok(numeric_reduce!(*, left.evaluate()?, right.evaluate()?))
+                Ok(numeric_reduce!(*, left.evaluate(env)?, right.evaluate(env)?))
             }
             Expression::BinaryDivision(left, right) => {
-                let right = right.evaluate()?;
+                let right = right.evaluate(env)?;
                 if right.is_zero() {
                     return Err(AstError::DivisionByZero);
                 }
-                return Ok(numeric_reduce!(/, left.evaluate()?, right));
+                return Ok(numeric_reduce!(/, left.evaluate(env)?, right));
             }
 
             Expression::GreaterThan(left, right) => {
-                Ok(boolean_reduce!(>, left.evaluate()?, right.evaluate()?))
+                Ok(boolean_reduce!(>, left.evaluate(env)?, right.evaluate(env)?))
             }
             Expression::GreaterEqualThan(left, right) => {
-                Ok(boolean_reduce!(>=, left.evaluate()?, right.evaluate()?))
+                Ok(boolean_reduce!(>=, left.evaluate(env)?, right.evaluate(env)?))
             }
             Expression::LessThan(left, right) => {
-                Ok(boolean_reduce!(<, left.evaluate()?, right.evaluate()?))
+                Ok(boolean_reduce!(<, left.evaluate(env)?, right.evaluate(env)?))
             }
             Expression::LessEqualThan(left, right) => {
-                Ok(boolean_reduce!(<=, left.evaluate()?, right.evaluate()?))
+                Ok(boolean_reduce!(<=, left.evaluate(env)?, right.evaluate(env)?))
             }
 
             Expression::EqualTo(left, right) => {
-                Ok(boolean_reduce!(==, left.evaluate()?, right.evaluate()?))
+                Ok(boolean_reduce!(==, left.evaluate(env)?, right.evaluate(env)?))
             }
             Expression::NotEqualTo(left, right) => {
-                Ok(boolean_reduce!(!=, left.evaluate()?, right.evaluate()?))
+                Ok(boolean_reduce!(!=, left.evaluate(env)?, right.evaluate(env)?))
             }
 
-            Expression::UnaryNegation(expr) => Ok(match expr.evaluate()? {
+            Expression::UnaryNegation(expr) => Ok(match expr.evaluate(env)? {
                 LiteralKind::Integer(x) => LiteralKind::Integer(-x),
                 LiteralKind::Real(x) => LiteralKind::Real(-x),
                 LiteralKind::Boolean(x) => LiteralKind::Boolean(!x),
                 LiteralKind::Void => LiteralKind::Void,
             }),
-            Expression::UnaryAddition(expr) => Ok(expr.evaluate()?),
+            Expression::UnaryAddition(expr) => Ok(expr.evaluate(env)?),
 
             Expression::Ternary(predicate, left, right) => {
-                if predicate.evaluate()?.is_true() {
-                    Ok(left.evaluate()?)
+                if predicate.evaluate(env)?.is_true() {
+                    Ok(left.evaluate(env)?)
                 } else {
-                    Ok(right.evaluate()?)
+                    Ok(right.evaluate(env)?)
                 }
-            }
+            },
+
+            Expression::Reference(var) => match env {
+                Some(env) => match env.get_variable(var) {
+                    Some(v) => Ok(v),
+                    None => Err(AstError::UnresolvedReference),
+                }
+                None => Err(AstError::UnresolvedReference)
+        }
+//            Expression::Reference(x) =>  x.evaluate(),
         }
     }
 }
@@ -232,6 +247,9 @@ impl fmt::Display for Expression {
             Expression::UnaryAddition(e) => write!(f, "(+ {e})"),
 
             Expression::Ternary(p, l, r) => write!(f, "(? {p} {l} : {r})"),
+
+            Expression::Reference(s) => write!(f, "(ref {s})"),
+//            Expression::Reference(s) => write!(f, "(ref {s})"),
             //            Expression::Binary(op, l, r) => write!(f, "({} {l} {r})", op.to_char()),
             //            Expression::Unary(op, e) => write!(f, "({} {e})", op.to_char())
         }

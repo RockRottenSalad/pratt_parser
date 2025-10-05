@@ -22,13 +22,14 @@ fn main() {
     let str = args.into_iter().nth(1).unwrap();
 
     if str == "cli" {
+        let mut env = Environment::new(None);
         let mut stdin = std::io::stdin().lock();
         loop {
             let mut buffer = String::new();
             let _ = stdin.read_line(&mut buffer);
 
-            match interpret(&buffer) {
-                Ok(v) => println!("{v}"),
+            match interpret(&buffer, &mut env) {
+                Ok(_) => {},
                 Err(e) => println!("{e}"),
             }
         }

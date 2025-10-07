@@ -9,7 +9,7 @@ use std::result::Result;
 pub enum AstError {
     DivisionByZero,
     IllegalUnaryOperator,
-    UnresolvedReference,
+    UnresolvedReference(Rc<str>),
 }
 
 impl fmt::Display for AstError {
@@ -17,7 +17,7 @@ impl fmt::Display for AstError {
         match self {
             AstError::DivisionByZero => write!(f, "Division by zero"),
             AstError::IllegalUnaryOperator => write!(f, "Illegal unary operator"),
-            AstError::UnresolvedReference => write!(f, "Unresolved Reference"),
+            AstError::UnresolvedReference(x) => write!(f, "Unresolved reference('{x}')"),
         }
     }
 }
@@ -216,9 +216,9 @@ impl Expression {
             Expression::Reference(var) => match env {
                 Some(env) => match env.get_variable(var) {
                     Some(v) => Ok(v),
-                    None => Err(AstError::UnresolvedReference),
+                    None => Err(AstError::UnresolvedReference(Rc::clone(var))),
                 }
-                None => Err(AstError::UnresolvedReference)
+                None => Err(AstError::UnresolvedReference(Rc::clone(var)))
         }
 //            Expression::Reference(x) =>  x.evaluate(),
         }

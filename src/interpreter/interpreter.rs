@@ -22,7 +22,7 @@ pub enum InterpreterError {
     FileNotFound,
     CouldNotReadFile,
 
-    ExpectedOneExpression,
+    ExpectedOneStatement,
 }
 
 impl fmt::Display for InterpreterError {
@@ -35,7 +35,7 @@ impl fmt::Display for InterpreterError {
 
             InterpreterError::FileNotFound => write!(f, "File not found"),
             InterpreterError::CouldNotReadFile => write!(f, "Could not read file"),
-            InterpreterError::ExpectedOneExpression => write!(f, "Expected one expression - REPL"),
+            InterpreterError::ExpectedOneStatement => write!(f, "Expected one statement - REPL"),
         }
     }
 }
@@ -82,10 +82,6 @@ impl Environment {
     }
 }
 
-pub fn supress_unused_statement_errors() -> Statement {
-    todo!();
-}
-
 pub fn interpret_as_exprs(
     input: &str,
 ) -> Result<Vec<Result<Box<Expression>, ParserError>>, InterpreterError> {
@@ -114,27 +110,29 @@ pub fn interpret_as_statements(
 
     let mut parser = Parser::new(&tokens);
     let mut stms: Vec<Result<Box<Statement>, ParserError>> = Vec::with_capacity(10);
+    let is_in_repl_mode = false;
 
     while parser.peek() != Token::EOF {
-        stms.push(parse_statement(&mut parser));
+        stms.push(parse_statement(&mut parser, is_in_repl_mode));
     }
 
     Ok(stms)
 }
 
-pub fn interpret(input: &str, env: &mut Environment) -> Result<(), InterpreterError> {
+pub fn interpret_repl_mode(input: &str, env: &mut Environment) -> Result<(), InterpreterError> {
     let tokens = match tokenize(input) {
         Ok(v) => v,
         Err((e, _)) => return Err(InterpreterError::Tokenizer(e)),
     };
 
+    let is_in_repl_mode = true;
     let mut parser = Parser::new(&tokens);
-    let stm = parse_statement(&mut parser);
+    let stm = parse_statement(&mut parser, is_in_repl_mode);
 
     match stm {
         Ok(v) => {
             if parser.peek() != Token::EOF {
-                Err(InterpreterError::ExpectedOneExpression)
+                Err(InterpreterError::ExpectedOneStatement)
             } else {
                 match v.execute(env) {
                     Err(e) => Err(InterpreterError::Ast(e)),
@@ -167,7 +165,7 @@ pub fn interpret_file(path: &Path) -> InterpreterError {
         match expr {
             Ok(v) => match v.execute(&mut env) {
                 Ok(_) => {}
-                Err(e) => println!("Parser error: {}", e),
+                Err(e) => println!("Interpreter error: {}", e),
             },
             Err(e) => println!("Parser error: {}", e),
         };

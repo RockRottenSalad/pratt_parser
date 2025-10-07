@@ -1,0 +1,1 @@
+print lett x = 5

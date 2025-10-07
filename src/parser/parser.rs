@@ -54,9 +54,14 @@ impl<'a> Parser<'a> {
         self.index = 0;
     }
 
+    pub fn rewind(&mut self, to: usize) {
+        self.index = to
+    }
+
     pub fn index(&self) -> usize {
         self.index
     }
+
 }
 
 #[derive(Debug, PartialEq)]
@@ -90,10 +95,8 @@ impl fmt::Display for ParserError {
 }
 
 fn consume_until_token_or_eof(token: &Token, p: &mut Parser) -> () {
-    if p.peek() != *token {
-        while p.peek() != *token && p.peek() != Token::EOF {
-            p.consume();
-        }
+    while p.peek() != *token && p.peek() != Token::EOF {
+        p.consume();
     }
 }
 
@@ -245,7 +248,7 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
                     parse_expr(p, token.precedence())?,
                 )))
             } else {
-                Err(ParserError::ExpectedToken(p.index(), Token::Equal))
+                Err(ParserError::ExpectedToken(p.index()-1, Token::Let))
             }
         }
         Token::Bang => {
@@ -276,6 +279,8 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
 }
 
 fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+    expect(Token::Let, p)?;
+
     let id = match p.next() {
         Token::Identifier(str) => str,
         _ => return Err(ParserError::ExpectedIdentifier(p.index() - 1))
@@ -286,7 +291,11 @@ fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> 
     Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?)))
 }
 
-fn print_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+fn print_statement_handler(p: &mut Parser, expect_print_token: bool) -> Result<Box<Statement>, ParserError> {
+    if expect_print_token {
+        expect(Token::Print, p)?;
+    }
+
     Ok(Box::new(Statement::Print(parse_expr(p, 0)?)))
 }
 
@@ -295,13 +304,31 @@ pub fn parse_expression(p: &mut Parser) -> Result<Box<Expression>, ParserError> 
     parse_expr(p, 0)
 }
 
-pub fn parse_statement(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
-    match p.peek() {
-        Token::Let   => {p.consume(); let_statement_handler(p)},
-        Token::Print => {p.consume(); print_statement_handler(p)},
+pub fn parse_statement(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>, ParserError> {
+    // When in REPL mode, specifying 'print' token not required
+    let should_expect_print_token = !repl_mode;
+
+    let stm = match p.peek() {
+        Token::Let   => let_statement_handler(p),
+        Token::Print => print_statement_handler(p, true),
         // For maintaing backwards compat -- should Err in future
-        _ => print_statement_handler(p)
-    }
+        _ => if repl_mode {
+            print_statement_handler(p, should_expect_print_token)
+        }else {
+            let index = p.index();
+            // Consume expected expr to prevent further errors
+            let _ = parse_expr(p, 0);
+            Err(ParserError::ExpectedStatement(index))
+        }
+    };
+
+    // If this statement failed, then we want to consume the rest of the statement, so that this
+    // error doesn't cause any further errors.
+//    if stm.is_err() {
+//        while p.peek() != Token::EOF && let Err(..) = parse_statement(p, repl_mode) {}
+//    }
+
+    stm
 }
 
 

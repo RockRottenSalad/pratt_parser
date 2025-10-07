@@ -28,7 +28,7 @@ fn main() {
             let mut buffer = String::new();
             let _ = stdin.read_line(&mut buffer);
 
-            match interpret(&buffer, &mut env) {
+            match interpret_repl_mode(&buffer, &mut env) {
                 Ok(_) => {},
                 Err(e) => println!("{e}"),
             }

@@ -45,12 +45,13 @@ Variables must have values. The 'let' keyword must be used everytime, even when
 changing pre-existing variable, the old value is simply overriden.
 The concept of scope does not exist yet. All variables are global.
 
+You do not have to use 'print' whilst in REPL mode.
+
 ```
 Statement -> Statement*
-Statement -> Expr
-Statement -> '{' Expr '}' # Statements in blocks coming soon
 Statement -> 'let' Identifier '=' Expr 
-Statement -> print 'Expr'
+Statement -> print '{' Expr '}' # Statements in blocks coming soon
+Statement -> print Expr
 
 Identifier -> ['a'-'z'|'A'-'Z']+
 

@@ -130,7 +130,7 @@ impl fmt::Display for Token {
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::Identifier(str) => write!(f, "Identifier({str})"),
-            Token::Let => write!(f, "Let(=)"),
+            Token::Let => write!(f, "Let"),
             Token::Print => write!(f, "Print"),
         }
     }

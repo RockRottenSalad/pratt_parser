@@ -1,14 +1,23 @@
-5 + 5*4.5
 print 24.5 * 3 / 2.0
 print 4 > 1
 print 0.5 * 10/2 * (3 + 5) + (-5) <= 20 ? 5 : 0
 print 5+5 == 10 ? 2 : 10
 
-print 2*4*(2+4)
+let x = 10
+let y = 25
 
-print true ? false ? 1 : false ? 5 : 6 : 3
-print true ? false ? 1 : true ? 5 : 6 : 3
-print {5}
+print x * 2 + y + 5
+
+if x > 5 {
+    print 23
+} else {
+    print 10
+}
+
+{
+    let y = 99
+    print y
+}
 
 print 24 * 3 / 2 <= 1 > 4 ? 0 : 500
 

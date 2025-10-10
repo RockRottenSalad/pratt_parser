@@ -73,12 +73,21 @@ impl Environment {
     pub fn get_variable(&self, name: &str) -> Option<LiteralKind> {
         match self.state.get(name) {
             Some(v) => Some(v.clone()),
-            None => None,
+            None => match &self.parent {
+                Some(env) => env.get_variable(name),
+                None => None
+            }
         }
     }
 
-    pub fn variable_exists(&mut self, name: &str) -> bool {
-        self.state.contains_key(name)
+    pub fn variable_exists(&self, name: &str) -> bool {
+        match self.state.contains_key(name) {
+            true => true,
+            false => match &self.parent {
+                Some(env) => env.variable_exists(name),
+                None => false
+            }
+        }
     }
 }
 
@@ -119,10 +128,10 @@ pub fn interpret_as_statements(
     Ok(stms)
 }
 
-pub fn interpret_repl_mode(input: &str, env: &mut Environment) -> Result<(), InterpreterError> {
+pub fn interpret_repl_mode(input: &str, env: Box<Environment>) -> Result<Box<Environment>, (Box<Environment>, InterpreterError)> {
     let tokens = match tokenize(input) {
         Ok(v) => v,
-        Err((e, _)) => return Err(InterpreterError::Tokenizer(e)),
+        Err((e, _)) => return Err((env, InterpreterError::Tokenizer(e))),
     };
 
     let is_in_repl_mode = true;
@@ -132,15 +141,15 @@ pub fn interpret_repl_mode(input: &str, env: &mut Environment) -> Result<(), Int
     match stm {
         Ok(v) => {
             if parser.peek() != Token::EOF {
-                Err(InterpreterError::ExpectedOneStatement)
+                Err((env, InterpreterError::ExpectedOneStatement))
             } else {
                 match v.execute(env) {
-                    Err(e) => Err(InterpreterError::Ast(e)),
-                    _ => Ok(()),
+                    Err((new_env, e)) => Err((new_env, InterpreterError::Ast(e))),
+                    Ok(new_env) => Ok(new_env),
                 }
             }
         }
-        Err(e) => Err(InterpreterError::Parser(e)),
+        Err(e) => Err((env, InterpreterError::Parser(e))),
     }
 }
 
@@ -163,9 +172,9 @@ pub fn interpret_file(path: &Path) -> InterpreterError {
 
     for expr in exprs {
         match expr {
-            Ok(v) => match v.execute(&mut env) {
-                Ok(_) => {}
-                Err(e) => println!("Interpreter error: {}", e),
+            Ok(v) => match v.execute(env) {
+                Ok(new_env) => env = new_env,
+                Err((new_env, e)) => { println!("Interpreter error: {}", e); env = new_env; },
             },
             Err(e) => println!("Parser error: {}", e),
         };

@@ -6,6 +6,37 @@ mod tests {
     use crate::ast::LiteralKind;
 
     #[test]
+    fn test_parser_if_statements_good() {
+        let inputs = [
+            "if 5 > 10 { print 1 } else { print 2 }",
+            "if 5*5 > 30 { print 1 } else if false { print 2 } else { print 3 }",
+            "if 5*5 > 30 { print 1 } else if true { print 2 } else { print 3 }",
+            "if 9 < 18 { print 1 } else { print 2 }",
+            "if(10>=10){print 1}else{print 2}",
+            "if true { print 2 + 3 * 2 } else { print 5 * 4 }",
+        ];
+
+        let expected = [ 2, 3, 2, 1, 1, 8, ];
+
+
+        for (input, _output) in std::iter::zip(inputs, expected).into_iter() {
+            let tokens = match tokenize(input) {
+                Ok(v) => v,
+                Err((e, i)) => panic!("Tokenizer error: {e} at index {i}"),
+            };
+
+            let mut parser = Parser::new(&tokens);
+
+            let repl_mode = false;
+            match parse_statement(&mut parser, repl_mode) {
+                Ok(..) => {}, // TODO make interpreter tests that check this works
+                Err(e) => panic!("Unexpected error for input {:?} | {e}", input),
+            };
+        }
+
+    }
+
+    #[test]
     fn test_var_dec_good() {
 
         let inputs = [
@@ -54,14 +85,27 @@ mod tests {
 
     #[test]
     fn test_var_dec_bad() {
+        let inputs = [
+            "lett extraLetter = 5",
+            "et missingLetter = 25 * (2 - 10)",
+            "let invalidExpr = 5 +",
+            "let missingExpr =",
+            "let missingEqual 5 * 2",
+        ];
 
-        // TODO
+        for input in inputs {
+            let tokens = match tokenize(input) {
+                Ok(v) => v,
+                Err((e, i)) => panic!("Tokenizer error: {e} at index {i}"),
+            };
 
-        //let inputs = [
-        //    "lett extraLetter = 5",
-        //    "et missingLetter = 25 * (2 - 10)",
-        //    "let invalidExpr = 5 +",
-        //    "let missingExpr =",
-        //];
+            let mut parser = Parser::new(&tokens);
+
+            let repl_mode = false;
+            match parse_statement(&mut parser, repl_mode) {
+                Ok(s) => panic!("Expected parser to fail, got: {s}"),
+                Err(..) => {} // TODO check that error makes sense
+            }
+        }
     }
 }

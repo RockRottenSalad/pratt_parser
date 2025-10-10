@@ -1,0 +1,11 @@
+
+let x = 10
+print x
+
+{
+    let x = 5
+    print x
+}
+
+print x
+

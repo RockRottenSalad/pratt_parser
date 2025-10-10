@@ -109,39 +109,6 @@ mod parser_e2e_test {
     }
 
     #[test]
-    fn test_parser_if_statements_good() {
-        let inputs = [
-            "if 5 > 10 { 1 } else { 2 }",
-            "if 5*5 > 30 { 1 } else if false { 2 } else { 3 }",
-            "if 5*5 > 30 { 1 } else if true { 2 } else { 3 }",
-            "if 9 < 18 { 1 } else { 2 }",
-            "if(10>=10){1}else{2}",
-            "if true { 2 + 3 * 2 } else { 5 * 4 }",
-        ];
-
-        let expected = [ 2, 3, 2, 1, 1, 8, ];
-
-
-        for (input, output) in std::iter::zip(inputs, expected).into_iter() {
-            let tokens = match tokenize(input) {
-                Ok(v) => v,
-                Err((e, i)) => panic!("Tokenizer error: {e} at index {i}"),
-            };
-
-            let mut parser = Parser::new(&tokens);
-
-            match parse_expression(&mut parser) {
-                Ok(v) => match v.evaluate(None).unwrap() {
-                    LiteralKind::Integer(x) => assert_eq!(x, output),
-                    _ => panic!("Unexpected type")
-                },
-                Err(e) => panic!("Unexpected error {e}"),
-            };
-        }
-
-    }
-
-    #[test]
     fn test_parser_e2e_bad() {
         let inputs = ["5*", "(5+10", "??"];
 

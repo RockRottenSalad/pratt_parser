@@ -61,7 +61,6 @@ impl<'a> Parser<'a> {
     pub fn index(&self) -> usize {
         self.index
     }
-
 }
 
 #[derive(Debug, PartialEq)]
@@ -124,36 +123,11 @@ fn grouping_expr_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError>
     Ok(Box::new(Expression::Grouping(expr)))
 }
 
-fn if_statement_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
-    let condition = parse_expr(p, 0)?;
-
-    expect(Token::CurlyL, p)?;
-
-    let statement = parse_expr(p, 0)?;
-
-    expect(Token::CurlyR, p)?;
-
-    expect(Token::Else, p)?;
-
-    Ok(Box::new(Expression::Ternary(
-        condition,
-        statement,
-        parse_expr(p, 0)?,
-    )))
-}
-
-fn block_statement_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
-    let expr = parse_expr(p, 0)?;
-    expect(Token::CurlyR, p)?;
-    Ok(expr)
-}
-
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
         // IF statement
-        Token::If => if_statement_handler(p),
-        Token::CurlyL => block_statement_handler(p),
-
+        //        Token::If => if_statement_handler(p),
+        //        Token::CurlyL => block_statement_handler(p),
         Token::LiteralInteger(x) => Ok(Box::new(Expression::Literal(LiteralKind::Integer(x)))),
         Token::LiteralReal(x) => Ok(Box::new(Expression::Literal(LiteralKind::Real(x)))),
         Token::LiteralBoolean(x) => Ok(Box::new(Expression::Literal(LiteralKind::Boolean(x)))),
@@ -173,7 +147,11 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
     }
 }
 
-fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+fn tail_handler(
+    token: Token,
+    expr: Box<Expression>,
+    p: &mut Parser,
+) -> Result<Box<Expression>, ParserError> {
     match token {
         Token::LiteralInteger(_) => Err(ParserError::ExpectedOperator(p.index())),
         Token::LiteralReal(_) => Err(ParserError::ExpectedOperator(p.index())),
@@ -248,7 +226,7 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
                     parse_expr(p, token.precedence())?,
                 )))
             } else {
-                Err(ParserError::ExpectedToken(p.index()-1, Token::Let))
+                Err(ParserError::ExpectedToken(p.index() - 1, Token::Let))
             }
         }
         Token::Bang => {
@@ -262,7 +240,7 @@ fn tail_handler(token: Token, expr: Box<Expression>, p: &mut Parser) -> Result<B
                 Err(ParserError::SyntaxError(p.index()))
             }
         }
-        _ => Err(ParserError::SyntaxError(p.index()))
+        _ => Err(ParserError::SyntaxError(p.index())),
     }
 }
 
@@ -283,7 +261,7 @@ fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> 
 
     let id = match p.next() {
         Token::Identifier(str) => str,
-        _ => return Err(ParserError::ExpectedIdentifier(p.index() - 1))
+        _ => return Err(ParserError::ExpectedIdentifier(p.index() - 1)),
     };
 
     expect(Token::Equal, p)?;
@@ -291,14 +269,50 @@ fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> 
     Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?)))
 }
 
-fn print_statement_handler(p: &mut Parser, expect_print_token: bool) -> Result<Box<Statement>, ParserError> {
-    if expect_print_token {
+fn print_statement_handler(p: &mut Parser, expect_print: bool) -> Result<Box<Statement>, ParserError> {
+    if expect_print {
         expect(Token::Print, p)?;
     }
 
     Ok(Box::new(Statement::Print(parse_expr(p, 0)?)))
 }
 
+fn block_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>, ParserError> {
+    expect(Token::CurlyL, p)?;
+
+    let mut stms = Vec::with_capacity(10);
+    while p.peek() != Token::CurlyR && p.peek() != Token::EOF {
+        stms.push(parse_statement(p, repl_mode)?)
+    }
+
+    expect(Token::CurlyR, p)?;
+
+    stms.shrink_to_fit();
+    Ok(Box::new(Statement::Block(stms)))
+}
+
+fn if_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>, ParserError> {
+    expect(Token::If, p)?;
+
+    let condition = parse_expr(p, 0)?;
+
+    let statement = match p.peek() {
+        Token::CurlyL => block_statement_handler(p, repl_mode)?,
+        _             => parse_statement(p, repl_mode)?,
+    };
+
+    if p.peek() == Token::Else {
+        p.consume();
+
+        Ok(Box::new(Statement::IfElse(
+            condition,
+            statement,
+            parse_statement(p, repl_mode)?,
+        )))
+    } else {
+        Ok(Box::new(Statement::If(condition, statement)))
+    }
+}
 
 pub fn parse_expression(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     parse_expr(p, 0)
@@ -309,26 +323,28 @@ pub fn parse_statement(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>
     let should_expect_print_token = !repl_mode;
 
     let stm = match p.peek() {
-        Token::Let   => let_statement_handler(p),
+        Token::Let => let_statement_handler(p),
         Token::Print => print_statement_handler(p, true),
+        Token::If => if_statement_handler(p, repl_mode),
+        Token::CurlyL => block_statement_handler(p, repl_mode),
         // For maintaing backwards compat -- should Err in future
-        _ => if repl_mode {
-            print_statement_handler(p, should_expect_print_token)
-        }else {
-            let index = p.index();
-            // Consume expected expr to prevent further errors
-            let _ = parse_expr(p, 0);
-            Err(ParserError::ExpectedStatement(index))
+        _ => {
+            if repl_mode {
+                print_statement_handler(p, should_expect_print_token)
+            } else {
+                let index = p.index();
+                // Consume expected expr to prevent further errors
+                let _ = parse_expr(p, 0);
+                Err(ParserError::ExpectedStatement(index))
+            }
         }
     };
 
     // If this statement failed, then we want to consume the rest of the statement, so that this
     // error doesn't cause any further errors.
-//    if stm.is_err() {
-//        while p.peek() != Token::EOF && let Err(..) = parse_statement(p, repl_mode) {}
-//    }
+    //    if stm.is_err() {
+    //        while p.peek() != Token::EOF && let Err(..) = parse_statement(p, repl_mode) {}
+    //    }
 
     stm
 }
-
-

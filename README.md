@@ -13,7 +13,7 @@ cargo run -- cli
 ```
 
 The recommended way is to make a txt file with all your expressions as seen in
-`demo_files/example.txt` and provide the relative path to the file like so.
+the `demo_files` directory and provide the relative path to the file like so.
 
 ```
 cargo run -- demo_files/example.txt
@@ -21,14 +21,15 @@ cargo run -- demo_files/example.txt
 
 ## Notes about latest commits
 
-Booleans, ternary operators, if statements and variables have been recently
-added and are error prone.
+Scope now exists, see `demo_files/scope_example.txt` for an example.
 
 The '!' negation operator does not exist yet, use '-' for negating
 booleans.
 
-Using numeric operators with booleans will implicitly typecast the boolean to an
-integer or real depending on the expression. Note that false == 0 and true == 1.
+Using numeric operators with booleans will implicitly typecast the boolean to
+an integer or real depending on the expression. Note that false == 0 and true
+== 1 for integers. For reals, any value greater than 0 is treated as true.
+
 
 In expressions that evaluate to a numeric results, numbers which are > 0 will
 be considered true in the ternary operator and if statement. Although it may
@@ -38,30 +39,30 @@ bools, ints or floats.
 
 ## The supported language thus far
 
-Note that the if statement is actually not a proper if statement, but is
-currently implemented as a ternary expression. This will be changed.
-
 Variables must have values. The 'let' keyword must be used everytime, even when
 changing pre-existing variable, the old value is simply overriden.
-The concept of scope does not exist yet. All variables are global.
 
-You do not have to use 'print' whilst in REPL mode.
+You do not have to type 'print' whilst in REPL mode, simply running the
+expression will implicity print it.
 
 ```
 Statement -> Statement*
-Statement -> 'let' Identifier '=' Expr 
-Statement -> print '{' Expr '}' # Statements in blocks coming soon
-Statement -> print Expr
+Statement -> PrintStatement
+Statement -> DeclareVarStatement
+Statement -> IfStatement
+Statement -> BlockStatement
+
+PrintStatement -> 'print' Expr
+DeclareVarStatement -> 'let' Identifier '=' Expr 
+IfStatement -> 'if' Expr Statement ('else' Statement)?
+BlockStatement -> '{' Statement '}'
 
 Identifier -> ['a'-'z'|'A'-'Z']+
 
-Expr -> Expr['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>=']Expr
-Expr -> (Expr)
+Expr -> Expr ['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>='] Expr
+Expr -> '(' Expr ')'
 Expr -> Literal
-Expr -> IfStatement # Not a real statement, just a placeholder
 Expr -> Expr '?' Expr ':' Expr
-
-IfStatement -> 'if' Expr '{' Expr '}' 'else' '{' Expr '}'
 
 Literal -> Boolean
 Literal -> Number

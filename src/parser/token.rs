@@ -53,8 +53,16 @@ pub enum Token {
     Equal,
     Bang,
 
+    And,
+    Or,
+
     Space,
     EOF,
+
+    As,
+    Int, 
+    Real,
+    Bool,
 
     Question,
     Colon,
@@ -67,7 +75,13 @@ fn token_from_identifier(identifier: &str) -> Option<Token> {
         "if"    => Some(Token::If),
         "else"  => Some(Token::Else),
         "let"   => Some(Token::Let),
-        "print"   => Some(Token::Print),
+        "print" => Some(Token::Print),
+        "as"    => Some(Token::As),
+        "int"   => Some(Token::Int),
+        "real"  => Some(Token::Real),
+        "bool"  => Some(Token::Bool),
+        "and"   => Some(Token::And),
+        "or"    => Some(Token::Or),
         _       => None
     }
 }
@@ -93,6 +107,10 @@ impl Token {
             Token::Star => 4,
             Token::Slash => 4,
 
+            Token::And => 5,
+            Token::Or => 5,
+
+            Token::As => 6,
             // TODO Figure out if ternary operator precedence be handled by parser instead?
             // Might be cleaner, might not
             Token::Question => 1,
@@ -126,12 +144,18 @@ impl fmt::Display for Token {
             Token::Question => write!(f, "Question(?)"),
             Token::Colon => write!(f, "Colon(:)"),
             Token::EOF => write!(f, "EOF"),
-            Token::Space => write!(f, " "),
+            Token::Space => write!(f, "Space(  )"),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::Identifier(str) => write!(f, "Identifier({str})"),
             Token::Let => write!(f, "Let"),
             Token::Print => write!(f, "Print"),
+            Token::As => write!(f, "As"),
+            Token::And => write!(f, "And"),
+            Token::Or => write!(f, "Or"),
+            Token::Int => write!(f, "Type(Int)"),
+            Token::Real => write!(f, "Type(Real)"),
+            Token::Bool => write!(f, "Type(Bool)"),
         }
     }
 }

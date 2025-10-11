@@ -68,6 +68,7 @@ pub enum ParserError {
     UnterminatedGrouping(usize),
     ExpectedOperator(usize),
     ExpectedLiteral(usize),
+    ExpectedType(usize),
     ExpectedIdentifier(usize),
     SyntaxError(usize),
     ExpectedToken(usize, Token),
@@ -84,6 +85,7 @@ impl fmt::Display for ParserError {
             ParserError::UnterminatedGrouping(x) => write!(f, "Unterminated grouping at token {x}"),
             ParserError::ExpectedOperator(x) => write!(f, "Expected operator at token {x}"),
             ParserError::ExpectedLiteral(x) => write!(f, "Expected literal at token {x}"),
+            ParserError::ExpectedType(x) => write!(f, "Expected type at token {x}"),
             ParserError::ExpectedIdentifier(x) => write!(f, "Expected identifier at token {x}"),
             ParserError::SyntaxError(x) => write!(f, "Syntax error at token {x}"),
             ParserError::ExpectedToken(x, t) => write!(f, "Expected token {t} at token {x}"),
@@ -121,6 +123,19 @@ fn grouping_expr_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError>
     };
 
     Ok(Box::new(Expression::Grouping(expr)))
+}
+
+fn typecast_expr_handler(expr: Box<Expression>, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
+
+    let cast_type = match p.peek() {
+        Token::Int => LiteralKind::default_integer(),
+        Token::Real => LiteralKind::default_real(),
+        Token::Bool => LiteralKind::default_boolean(),
+        _ => return Err(ParserError::ExpectedType(p.index()))
+    };
+
+    p.consume();
+    Ok(Box::new(Expression::Typecast(expr, cast_type)))
 }
 
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
@@ -171,6 +186,11 @@ fn tail_handler(
             expr,
             parse_expr(p, token.precedence())?,
         ))),
+
+        Token::As => typecast_expr_handler(expr, p),
+
+        Token::And => Ok(Box::new(Expression::And(expr, parse_expr(p, 0)?))),
+        Token::Or => Ok(Box::new(Expression::Or(expr, parse_expr(p, 0)?))),
 
         Token::Question => {
             let left = parse_expr(p, 0)?;

@@ -8,6 +8,8 @@ The plan is to turn this into a simple interpreted (maybe functional) language.
 ## Using the program
 
 In not-so-good repl mode. There is no support for arrow keys. Exit with Ctrl-C.
+You do not have to type 'print' whilst in REPL mode, simply running the
+expression will implicity print it.
 ```
 cargo run -- cli
 ```
@@ -39,11 +41,13 @@ bools, ints or floats.
 
 ## The supported language thus far
 
+The following syntax indicates that the production rule must follow a certain path.
+```
+(Prod => Result) 'type specific operator' (Prod => Result)
+```
+
 Variables must have values. The 'let' keyword must be used everytime, even when
 changing pre-existing variable, the old value is simply overriden.
-
-You do not have to type 'print' whilst in REPL mode, simply running the
-expression will implicity print it.
 
 ```
 Statement -> Statement*
@@ -60,6 +64,7 @@ BlockStatement -> '{' Statement '}'
 Identifier -> ['a'-'z'|'A'-'Z']+
 
 Expr -> Expr ['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>='] Expr
+Expr -> (Expr => Boolean) ['and'|'or'] (Expr => Boolean)
 Expr -> '(' Expr ')'
 Expr -> Literal
 Expr -> Expr '?' Expr ':' Expr

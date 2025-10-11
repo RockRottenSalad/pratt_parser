@@ -9,6 +9,8 @@ use std::result::Result;
 pub enum AstError {
     DivisionByZero,
     IllegalUnaryOperator,
+    CannotImplicitityCastBoolToNumeric,
+    CannotImplicitityCastNumericToBool,
     UnresolvedReference(Rc<str>),
 }
 
@@ -17,6 +19,8 @@ impl fmt::Display for AstError {
         match self {
             AstError::DivisionByZero => write!(f, "Division by zero"),
             AstError::IllegalUnaryOperator => write!(f, "Illegal unary operator"),
+            AstError::CannotImplicitityCastBoolToNumeric => write!(f, "Cannot implicity cast bool to numeric"),
+            AstError::CannotImplicitityCastNumericToBool => write!(f, "Cannot implicity cast numeric to bool"),
             AstError::UnresolvedReference(x) => write!(f, "Unresolved reference('{x}')"),
         }
     }
@@ -57,6 +61,100 @@ impl LiteralKind {
             LiteralKind::Void => 3,
         }
     }
+
+    pub fn is_integer(&self) -> bool {
+        match self {
+            LiteralKind::Integer(_) => true,
+            _ => false
+        }
+    }
+    pub fn is_real(&self) -> bool {
+        match self {
+            LiteralKind::Real(_) => true,
+            _ => false
+        }
+    }
+    pub fn is_boolean(&self) -> bool {
+        match self {
+            LiteralKind::Boolean(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn default_integer() -> Self {
+        LiteralKind::Integer(i32::default())
+    }
+    pub fn default_real() -> Self {
+        LiteralKind::Real(f32::default())
+    }
+    pub fn default_boolean() -> Self {
+        LiteralKind::Boolean(bool::default())
+    }
+
+    pub fn typecast(&self, other: &Self) -> LiteralKind {
+        match other {
+            LiteralKind::Void => LiteralKind::Void,
+            LiteralKind::Boolean(_) => LiteralKind::Boolean(self.is_true()),
+            LiteralKind::Integer(_) => match *self {
+                LiteralKind::Real(x)    => LiteralKind::Integer(x as i32),
+                LiteralKind::Boolean(x) => LiteralKind::Integer(x as i32),
+                LiteralKind::Integer(x) => LiteralKind::Integer(x),
+                LiteralKind::Void       => LiteralKind::Integer(0)
+            },
+            LiteralKind::Real(_) => match *self {
+                LiteralKind::Real(x) => LiteralKind::Real(x),
+                LiteralKind::Boolean(x) => LiteralKind::Real((x as i32) as f32),
+                LiteralKind::Integer(x) => LiteralKind::Real(x as f32),
+                LiteralKind::Void => LiteralKind::Real(0.0),
+            },
+        }
+    }
+
+    pub fn can_implicit_cast(&self, other: &Self) -> bool {
+        match self {
+            LiteralKind::Integer(_) => match other {
+                LiteralKind::Integer(_) => true,
+                LiteralKind::Real(_) => true,
+                _ => false,
+            },
+            LiteralKind::Real(_) => match other {
+                LiteralKind::Real(_) => true,
+                LiteralKind::Integer(_) => true,
+                _ => false,
+            },
+            LiteralKind::Boolean(_) => match other {
+                LiteralKind::Boolean(_) => true,
+                _ => false,
+            },
+            LiteralKind::Void => match other {
+                LiteralKind::Void => true,
+                _ => false,
+            },
+        }
+    }
+
+    pub fn is_same_type(&self, other: &Self) -> bool {
+        match self {
+            LiteralKind::Integer(_) => match other {
+                LiteralKind::Integer(_) => true,
+                _ => false,
+            },
+            LiteralKind::Real(_) => match other {
+                LiteralKind::Real(_) => true,
+                _ => false,
+            },
+            LiteralKind::Boolean(_) => match other {
+                LiteralKind::Boolean(_) => true,
+                _ => false,
+            },
+            LiteralKind::Void => match other {
+                LiteralKind::Void => true,
+                _ => false,
+            },
+        }
+    }
+
+
 }
 
 impl fmt::Display for LiteralKind {
@@ -75,29 +173,40 @@ macro_rules! numeric_reduce {
     ($op:tt, $self:expr, $other:expr) => {
         match $self {
             LiteralKind::Integer(x) => match $other {
-                LiteralKind::Integer(y) => LiteralKind::Integer(x $op y),
-                LiteralKind::Real(y) => LiteralKind::Real((x as f32) $op y),
-                LiteralKind::Boolean(y) => LiteralKind::Integer(x $op (y as i32)),
-                LiteralKind::Void => LiteralKind::Integer(x),
+                LiteralKind::Integer(y) => Ok(LiteralKind::Integer(x $op y)),
+                LiteralKind::Real(y) => Ok(LiteralKind::Real((x as f32) $op y)),
+                LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+                LiteralKind::Void => Ok(LiteralKind::Integer(x)),
             },
             LiteralKind::Real(x) => match $other {
-                LiteralKind::Integer(y) => LiteralKind::Real(x $op (y as f32)),
-                LiteralKind::Real(y) => LiteralKind::Real(x $op y),
-                LiteralKind::Boolean(y) => LiteralKind::Real(x $op ((y as i32) as f32)),
-                LiteralKind::Void => LiteralKind::Real(x),
+                LiteralKind::Integer(y) => Ok(LiteralKind::Real(x $op (y as f32))),
+                LiteralKind::Real(y) => Ok(LiteralKind::Real(x $op y)),
+                LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+                LiteralKind::Void => Ok(LiteralKind::Real(x)),
             },
-            LiteralKind::Boolean(x) => match $other {
-                LiteralKind::Integer(y) => LiteralKind::Integer( (x as i32) $op y ),
-                LiteralKind::Real(y) => LiteralKind::Real(((x as i32) as f32) $op y),
-                LiteralKind::Boolean(y) => LiteralKind::Integer( (x as i32) $op (y as i32)  ),
-                LiteralKind::Void => LiteralKind::Boolean(x),
+            LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+            LiteralKind::Void => Ok($other)
+        }
+    }
+}
+
+macro_rules! cmp_reduce {
+    ($op:tt, $self:expr, $other:expr) => {
+        match $self {
+            LiteralKind::Integer(x) => match $other {
+                LiteralKind::Integer(y) => Ok(LiteralKind::Boolean(x $op y)),
+                LiteralKind::Real(y) => Ok(LiteralKind::Boolean((x as f32) $op y)),
+                LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+                LiteralKind::Void => Ok(LiteralKind::Boolean(false)),
             },
-            LiteralKind::Void => match $other {
-                LiteralKind::Integer(y) => LiteralKind::Integer(y),
-                LiteralKind::Real(y) => LiteralKind::Real(y),
-                LiteralKind::Boolean(y) => LiteralKind::Boolean(y),
-                LiteralKind::Void => LiteralKind::Void,
-            }
+            LiteralKind::Real(x) => match $other {
+                LiteralKind::Integer(y) => Ok(LiteralKind::Boolean(x $op (y as f32))),
+                LiteralKind::Real(y) => Ok(LiteralKind::Boolean(x $op y)),
+                LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+                LiteralKind::Void => Ok(LiteralKind::Boolean(false)),
+            },
+            LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+            LiteralKind::Void => Ok(LiteralKind::Boolean(false))
         }
     }
 }
@@ -105,25 +214,17 @@ macro_rules! numeric_reduce {
 macro_rules! boolean_reduce {
     ($op:tt, $self:expr, $other:expr) => {
         match $self {
-            LiteralKind::Integer(x) => match $other {
-                LiteralKind::Integer(y) => LiteralKind::Boolean(x $op y),
-                LiteralKind::Real(y) => LiteralKind::Boolean((x as f32) $op y),
-                LiteralKind::Boolean(y) => LiteralKind::Boolean(x $op (y as i32)),
-                LiteralKind::Void => LiteralKind::Void,
-            },
-            LiteralKind::Real(x) => match $other {
-                LiteralKind::Integer(y) => LiteralKind::Boolean(x $op (y as f32)),
-                LiteralKind::Real(y) => LiteralKind::Boolean(x $op y),
-                LiteralKind::Boolean(y) => LiteralKind::Boolean(x $op ((y as i32) as f32)),
-                LiteralKind::Void => LiteralKind::Void,
-            },
+            LiteralKind::Integer(_) => Err(AstError::CannotImplicitityCastNumericToBool),
+            LiteralKind::Real(_) => Err(AstError::CannotImplicitityCastNumericToBool),
+            LiteralKind::Void => Err(AstError::CannotImplicitityCastNumericToBool),
+
             LiteralKind::Boolean(x) => match $other {
-                LiteralKind::Integer(y) => LiteralKind::Boolean( (x as i32) $op y ),
-                LiteralKind::Real(y) => LiteralKind::Boolean(((x as i32) as f32) $op y),
-                LiteralKind::Boolean(y) => LiteralKind::Boolean(x $op y),
-                LiteralKind::Void => LiteralKind::Void,
+                LiteralKind::Boolean(y) => Ok(LiteralKind::Boolean(x $op y)),
+
+                LiteralKind::Integer(_) => Err(AstError::CannotImplicitityCastNumericToBool),
+                LiteralKind::Real(_) => Err(AstError::CannotImplicitityCastNumericToBool),
+                LiteralKind::Void => Err(AstError::CannotImplicitityCastNumericToBool),
             },
-            LiteralKind::Void => LiteralKind::Void
         }
     }
 }
@@ -147,10 +248,15 @@ pub enum Expression {
     EqualTo(Box<Expression>, Box<Expression>),
     NotEqualTo(Box<Expression>, Box<Expression>),
 
+    And(Box<Expression>, Box<Expression>),
+    Or(Box<Expression>, Box<Expression>),
+
     Ternary(Box<Expression>, Box<Expression>, Box<Expression>),
 
     Grouping(Box<Expression>),
+
     Literal(LiteralKind),
+    Typecast(Box<Expression>, LiteralKind),
 
     Reference(Rc<str>),
 }
@@ -161,41 +267,32 @@ impl Expression {
             Expression::Literal(w) => Ok(w.clone()),
             Expression::Grouping(expr) => expr.evaluate(env),
             Expression::BinaryAddition(left, right) => {
-                Ok(numeric_reduce!(+, left.evaluate(env)?, right.evaluate(env)?))
+                numeric_reduce!(+, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::BinarySubtraction(left, right) => {
-                Ok(numeric_reduce!(-, left.evaluate(env)?, right.evaluate(env)?))
+                numeric_reduce!(-, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::BinaryMultiplication(left, right) => {
-                Ok(numeric_reduce!(*, left.evaluate(env)?, right.evaluate(env)?))
+                numeric_reduce!(*, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::BinaryDivision(left, right) => {
                 let right = right.evaluate(env)?;
                 if right.is_zero() {
                     return Err(AstError::DivisionByZero);
                 }
-                return Ok(numeric_reduce!(/, left.evaluate(env)?, right));
+                return numeric_reduce!(/, left.evaluate(env)?, right);
             }
 
-            Expression::GreaterThan(left, right) => {
-                Ok(boolean_reduce!(>, left.evaluate(env)?, right.evaluate(env)?))
-            }
-            Expression::GreaterEqualThan(left, right) => {
-                Ok(boolean_reduce!(>=, left.evaluate(env)?, right.evaluate(env)?))
-            }
-            Expression::LessThan(left, right) => {
-                Ok(boolean_reduce!(<, left.evaluate(env)?, right.evaluate(env)?))
-            }
-            Expression::LessEqualThan(left, right) => {
-                Ok(boolean_reduce!(<=, left.evaluate(env)?, right.evaluate(env)?))
-            }
+            Expression::GreaterThan(left, right) => cmp_reduce!(>, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::GreaterEqualThan(left, right) => cmp_reduce!(>=, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::LessThan(left, right) => cmp_reduce!(<, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::LessEqualThan(left, right) => cmp_reduce!(<=, left.evaluate(env)?, right.evaluate(env)?),
 
-            Expression::EqualTo(left, right) => {
-                Ok(boolean_reduce!(==, left.evaluate(env)?, right.evaluate(env)?))
-            }
-            Expression::NotEqualTo(left, right) => {
-                Ok(boolean_reduce!(!=, left.evaluate(env)?, right.evaluate(env)?))
-            }
+            Expression::EqualTo(left, right) => cmp_reduce!(==, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::NotEqualTo(left, right) => cmp_reduce!(!=, left.evaluate(env)?, right.evaluate(env)?),
+
+            Expression::And(left, right) => boolean_reduce!(&&, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::Or(left, right) => boolean_reduce!(||, left.evaluate(env)?, right.evaluate(env)?),
 
             Expression::UnaryNegation(expr) => Ok(match expr.evaluate(env)? {
                 LiteralKind::Integer(x) => LiteralKind::Integer(-x),
@@ -212,6 +309,8 @@ impl Expression {
                     Ok(right.evaluate(env)?)
                 }
             },
+
+            Expression::Typecast(expr, kind) => Ok(expr.evaluate(env)?.typecast(kind)),
 
             Expression::Reference(var) => match env {
                 Some(env) => match env.get_variable(var) {
@@ -249,6 +348,10 @@ impl fmt::Display for Expression {
             Expression::Ternary(p, l, r) => write!(f, "(? {p} {l} : {r})"),
 
             Expression::Reference(s) => write!(f, "(ref {s})"),
+            Expression::Typecast(e, t) => write!(f, "(as {e} {t})"),
+
+            Expression::And(l, r) => write!(f, "(and {l} {r})"),
+            Expression::Or(l, r) => write!(f, "(or {l} {r})"),
 //            Expression::Reference(s) => write!(f, "(ref {s})"),
             //            Expression::Binary(op, l, r) => write!(f, "({} {l} {r})", op.to_char()),
             //            Expression::Unary(op, e) => write!(f, "({} {e})", op.to_char())

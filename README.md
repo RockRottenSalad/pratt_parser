@@ -43,7 +43,7 @@ bools, ints or floats.
 
 The following syntax indicates that the production rule must follow a certain path.
 ```
-(Prod => Result) 'type specific operator' (Prod => Result)
+(Prod -> Result) 'type specific operator' (Prod -> Result)
 ```
 
 Variables must have values. The 'let' keyword must be used everytime, even when
@@ -64,10 +64,11 @@ BlockStatement -> '{' Statement '}'
 Identifier -> ['a'-'z'|'A'-'Z']+
 
 Expr -> Expr ['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>='] Expr
-Expr -> (Expr => Boolean) ['and'|'or'] (Expr => Boolean)
-Expr -> '(' Expr ')'
+Expr -> Expr 'as' Type
+Expr -> (Expr -> Boolean) ['and'|'or'] (Expr -> Boolean)
 Expr -> Literal
 Expr -> Expr '?' Expr ':' Expr
+Expr -> '(' Expr ')'
 
 Literal -> Boolean
 Literal -> Number
@@ -76,6 +77,8 @@ Boolean -> ['true'|'false']
 
 Number -> Integer
 Number -> Real
+
+Type -> ['int'|'real'|'bool']
 
 Integer -> ['+'|'-']*['0'-'9']+
 Real -> ['+'|'-']*['0'-'9']+'.'['0'-'9']*

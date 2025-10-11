@@ -264,6 +264,17 @@ fn tail_handler(
     }
 }
 
+//fn ternary_handler(predicate: Box<Expression>, p: &mut Parser) 
+//-> Result<Box<Expression>, ParserError> {
+//    expect(Token::Question, p)?;
+//
+//    let left = parse_expression(p)?;
+//    expect(Token::Colon, p)?;
+//    let right = parse_expression(p)?;
+//
+//    Ok(Box::new(Expression::Ternary(predicate, left, right)))
+//}
+
 fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, ParserError> {
     let mut current = p.next();
     let mut left_expr = head_handler(current, p)?;

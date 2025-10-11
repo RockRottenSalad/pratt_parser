@@ -96,6 +96,9 @@ impl Token {
             Token::LiteralBoolean(_) => 0,
             Token::Identifier(_) => 0,
 
+            Token::And => 1,
+            Token::Or => 1,
+
             Token::GreaterThan => 2,
             Token::LessThan => 2,
             Token::Equal => 2,
@@ -107,10 +110,8 @@ impl Token {
             Token::Star => 4,
             Token::Slash => 4,
 
-            Token::And => 5,
-            Token::Or => 5,
-
             Token::As => 6,
+
             // TODO Figure out if ternary operator precedence be handled by parser instead?
             // Might be cleaner, might not
             Token::Question => 1,

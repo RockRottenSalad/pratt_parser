@@ -81,9 +81,31 @@ mod parser_e2e_test {
 
     #[test]
     fn test_parser_e2e_boolean_good() {
-        let inputs = ["5 > 10", "25*2 > 10 / 5 * 3"];
+        let inputs = [
+            "5 > 10",
+            "25*2 > 10 / 5 * 3",
+            "true and true",
 
-        let expected = [false, true];
+            "true and false",
+            "9*2 > 5 and 2+2 == 4",
+            "false or true",
+
+            "false or false",
+            "true or true",
+        ];
+
+        let expected = [
+            false,
+            true,
+            true,
+
+            false,
+            true,
+            true,
+
+            false,
+            true
+        ];
 
         for (input, output) in std::iter::zip(inputs, expected).into_iter() {
             let tokens = match tokenize(input) {

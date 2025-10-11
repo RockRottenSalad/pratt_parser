@@ -303,7 +303,13 @@ impl Expression {
             Expression::UnaryAddition(expr) => Ok(expr.evaluate(env)?),
 
             Expression::Ternary(predicate, left, right) => {
-                if predicate.evaluate(env)?.is_true() {
+
+                let predicate = predicate.evaluate(env)?;
+                if !predicate.is_boolean() {
+                    return Err(AstError::CannotImplicitityCastNumericToBool);
+                }
+
+                if predicate.is_true() {
                     Ok(left.evaluate(env)?)
                 } else {
                     Ok(right.evaluate(env)?)

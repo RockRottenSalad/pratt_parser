@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
-use crate::ast::{AstError, Expression};
-use crate::interpreter::interpreter::Environment;
+use crate::InterpreterError;
+use crate::ast::{Expression};
+use crate::interpreter::interpreter::State;
 use std::fmt;
 use std::rc::Rc;
 
@@ -15,51 +16,49 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub fn execute<'a>(&'a self, mut env: Box<Environment>) -> Result<Box<Environment>, (Box<Environment>, AstError)> {
+    pub fn execute<'a>(&'a self, state: &mut State) -> Result<(), InterpreterError> {
         match self {
-            Statement::Print(expr) => match expr.evaluate(Some(&mut env)) {
+            Statement::Print(expr) => match expr.evaluate(Some(state.env())) {
                 Ok(v) => println!("{v}"),
-                Err(e) => return Err((env, e)),
+                Err(e) => return Err(InterpreterError::Ast(e)),
             },
-            Statement::Assignment(var, expr) => match expr.evaluate(Some(&mut env)) {
-                Ok(x) => env.declare_variable(&Rc::clone(var), x),
-                Err(e) => return Err((env, e)),
+            Statement::Assignment(var, expr) => match expr.evaluate(Some(state.env())) {
+                Ok(x) => state.env().declare_variable(&Rc::clone(var), x),
+                Err(e) => return Err(InterpreterError::Ast(e)),
             },
-            Statement::If(cond, stm) => match cond.evaluate(Some(&mut env)) {
+            Statement::If(cond, stm) => match cond.evaluate(Some(state.env())) {
                 Ok(v) => {
                     if v.is_true() {
-                        return stm.execute(env);
+                        return stm.execute(state);
                     } else {
-                        return Ok(env);
+                        return Ok(());
                     }
                 }
-                Err(e) => return Err((env, e)),
+                Err(e) => return Err(InterpreterError::Ast(e)),
             },
-            Statement::IfElse(cond, a, b) => match cond.evaluate(Some(&mut env)) {
+            Statement::IfElse(cond, a, b) => match cond.evaluate(Some(state.env())) {
                 Ok(v) => {
                     if v.is_true() {
-                        return a.execute(env);
+                        return a.execute(state);
                     } else {
-                        return b.execute(env);
+                        return b.execute(state);
                     }
                 }
-                Err(e) => return Err((env, e)),
+                Err(e) => return Err(InterpreterError::Ast(e)),
             },
             Statement::Block(stms) => {
-                env = Environment::new(Some(env));
+                state.enter_scope();
                 for stm in stms {
-                    match stm.execute(env) {
-                        Ok(new_env) => env = new_env,
-                        Err(e) => return Err(e),
+                    match stm.execute(state) {
+                        Ok(()) => {},
+                        Err(e) => { state.leave_scope()?; return Err(e); },
                     }
                 }
-                if env.has_parent() {
-                    env = env.parent();
-                }
+                state.leave_scope()?;
             }
         };
 
-        Ok(env)
+        Ok(())
     }
 }
 

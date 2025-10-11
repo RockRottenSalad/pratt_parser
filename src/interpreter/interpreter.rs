@@ -40,6 +40,37 @@ impl fmt::Display for InterpreterError {
     }
 }
 
+pub struct State {
+    env: Box<Environment>
+}
+
+impl State {
+    pub fn new() -> Self {
+        State {
+            env: Environment::new(None),
+        }
+    }
+
+    pub fn env(&mut self) -> &mut Environment {
+        &mut self.env
+    }
+
+    pub fn enter_scope(&mut self) {
+        let prev = std::mem::replace(&mut self.env, Environment::new(None));
+        self.env.set_parent(prev)
+    }
+
+    pub fn leave_scope(&mut self) -> Result<(), InterpreterError> {
+        if !self.env.has_parent() {
+            panic!("Left scope without parent - WIP, should not panic in the future")
+        }
+
+        self.env = self.env.parent();
+
+        Ok(())
+    }
+}
+
 pub struct Environment {
     state: HashMap<Rc<str>, LiteralKind>,
     parent: Option<Box<Environment>>,
@@ -51,6 +82,10 @@ impl Environment {
             state: HashMap::with_capacity(10),
             parent,
         })
+    }
+
+    pub fn set_parent(&mut self, parent: Box<Environment>) {
+        self.parent = Some(parent);
     }
 
     pub fn parent(&mut self) -> Box<Self> {
@@ -75,8 +110,8 @@ impl Environment {
             Some(v) => Some(v.clone()),
             None => match &self.parent {
                 Some(env) => env.get_variable(name),
-                None => None
-            }
+                None => None,
+            },
         }
     }
 
@@ -85,8 +120,8 @@ impl Environment {
             true => true,
             false => match &self.parent {
                 Some(env) => env.variable_exists(name),
-                None => false
-            }
+                None => false,
+            },
         }
     }
 }
@@ -128,10 +163,10 @@ pub fn interpret_as_statements(
     Ok(stms)
 }
 
-pub fn interpret_repl_mode(input: &str, env: Box<Environment>) -> Result<Box<Environment>, (Box<Environment>, InterpreterError)> {
+pub fn interpret_repl_mode(input: &str, state: &mut State) -> Result<(), InterpreterError> {
     let tokens = match tokenize(input) {
         Ok(v) => v,
-        Err((e, _)) => return Err((env, InterpreterError::Tokenizer(e))),
+        Err((e, _)) => return Err(InterpreterError::Tokenizer(e)),
     };
 
     let is_in_repl_mode = true;
@@ -141,15 +176,12 @@ pub fn interpret_repl_mode(input: &str, env: Box<Environment>) -> Result<Box<Env
     match stm {
         Ok(v) => {
             if parser.peek() != Token::EOF {
-                Err((env, InterpreterError::ExpectedOneStatement))
+                Err(InterpreterError::ExpectedOneStatement)
             } else {
-                match v.execute(env) {
-                    Err((new_env, e)) => Err((new_env, InterpreterError::Ast(e))),
-                    Ok(new_env) => Ok(new_env),
-                }
+                v.execute(state)
             }
         }
-        Err(e) => Err((env, InterpreterError::Parser(e))),
+        Err(e) => Err(InterpreterError::Parser(e)),
     }
 }
 
@@ -168,13 +200,15 @@ pub fn interpret_file(path: &Path) -> InterpreterError {
         Err(e) => return e,
     };
 
-    let mut env = Environment::new(None);
+    let mut state = State::new();
 
     for expr in exprs {
         match expr {
-            Ok(v) => match v.execute(env) {
-                Ok(new_env) => env = new_env,
-                Err((new_env, e)) => { println!("Interpreter error: {}", e); env = new_env; },
+            Ok(v) => match v.execute(&mut state) {
+                Ok(()) => {}
+                Err(e) => {
+                    println!("Interpreter error: {}", e);
+                }
             },
             Err(e) => println!("Parser error: {}", e),
         };

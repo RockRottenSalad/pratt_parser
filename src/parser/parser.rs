@@ -4,6 +4,7 @@
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
 // More fault tolerance + should return Result type
 
+use crate::function::{Function,Argument};
 use crate::interpreter::statement::Statement;
 use crate::{
     parser::ast::{Expression, LiteralKind},
@@ -138,6 +139,21 @@ fn typecast_expr_handler(expr: Box<Expression>, p: &mut Parser) -> Result<Box<Ex
     Ok(Box::new(Expression::Typecast(expr, cast_type)))
 }
 
+fn args_expr_handler(p: &mut Parser) -> Result<Vec<LiteralKind>, ParserError> {
+    let mut v = Vec::new();
+
+    expect(Token::ParenL, p)?;
+
+    match p.next() {
+        Token::LiteralInteger(x) => v.push(LiteralKind::Integer(x)),
+        _ => v.push(LiteralKind::Integer(0))
+    }
+
+    expect(Token::ParenR, p)?;
+
+    Ok(v)
+}
+
 fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     match token {
         // IF statement
@@ -147,7 +163,10 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
         Token::LiteralReal(x) => Ok(Box::new(Expression::Literal(LiteralKind::Real(x)))),
         Token::LiteralBoolean(x) => Ok(Box::new(Expression::Literal(LiteralKind::Boolean(x)))),
 
-        Token::Identifier(x) => Ok(Box::new(Expression::Reference(x))),
+        Token::Identifier(x) => match p.peek() {
+            Token::ParenL => Ok(Box::new(Expression::FunctionCall(x, args_expr_handler(p)?))),
+            _ => Ok(Box::new(Expression::Reference(x))),
+        },
 
         Token::Minus => Ok(Box::new(Expression::UnaryNegation(parse_expr(
             p,
@@ -287,6 +306,34 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
     Ok(left_expr)
 }
 
+fn function_handler(p: &mut Parser) -> Result<Function, ParserError> {
+
+    expect(Token::Fn, p)?;
+
+    expect(Token::ParenL, p)?;
+
+    p.consume();
+//    expect(Token::Identifier("".into()), p)?;
+    expect(Token::Int, p)?;
+
+    expect(Token::ParenR, p)?;
+
+    expect(Token::Minus, p)?;
+    expect(Token::GreaterThan, p)?;
+
+    let expr = parse_expr(p, 0)?;
+    let arg = Argument {
+        name: "x".into(),
+        kind: LiteralKind::Integer(0)
+    };
+
+    let func = Function {parameters: vec![arg],
+        body: expr, return_value: LiteralKind::Integer(0)
+    };
+
+    return Ok(func)
+}
+
 fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
     expect(Token::Let, p)?;
 
@@ -297,7 +344,11 @@ fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> 
 
     expect(Token::Equal, p)?;
 
-    Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?)))
+    match p.peek() {
+        Token::Fn => Ok(Box::new(Statement::FunctionAssignment(id, function_handler(p)?.into()))),
+        _ => Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?)))
+    }
+
 }
 
 fn print_statement_handler(p: &mut Parser, expect_print: bool) -> Result<Box<Statement>, ParserError> {

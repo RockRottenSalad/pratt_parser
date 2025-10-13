@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::Environment;
+use crate::State;
 use std::rc::Rc;
 use std::fmt;
 use std::result::Result;
@@ -259,6 +260,8 @@ pub enum Expression {
     Typecast(Box<Expression>, LiteralKind),
 
     Reference(Rc<str>),
+
+    FunctionCall(Rc<str>, Vec<LiteralKind>)
 }
 
 impl Expression {
@@ -324,7 +327,17 @@ impl Expression {
                     None => Err(AstError::UnresolvedReference(Rc::clone(var))),
                 }
                 None => Err(AstError::UnresolvedReference(Rc::clone(var)))
-        }
+
+        },
+
+            Expression::FunctionCall(y, xs) => match env {
+                Some(env) => match env.get_function(y) {
+                    Some(f) => f.evaluate(xs),
+                    None => todo!()
+                },
+                None => todo!()
+            }
+                
 //            Expression::Reference(x) =>  x.evaluate(),
         }
     }
@@ -358,9 +371,7 @@ impl fmt::Display for Expression {
 
             Expression::And(l, r) => write!(f, "(and {l} {r})"),
             Expression::Or(l, r) => write!(f, "(or {l} {r})"),
-//            Expression::Reference(s) => write!(f, "(ref {s})"),
-            //            Expression::Binary(op, l, r) => write!(f, "({} {l} {r})", op.to_char()),
-            //            Expression::Unary(op, e) => write!(f, "({} {e})", op.to_char())
+            Expression::FunctionCall(_y, _xs) => write!(f, "(() func ...)"), // TODO
         }
     }
 }

@@ -1,5 +1,15 @@
 #![allow(dead_code)]
 
+pub struct Exact<T> {
+    value: T
+}
+
+impl<T> Exact<T> {
+    pub fn get(&self) -> &T {
+        &self.value
+    }
+}
+
 pub enum Either<A, B> {
     Left(A),
     Right(B),

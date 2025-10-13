@@ -64,6 +64,9 @@ pub enum Token {
     Real,
     Bool,
 
+    Fn,
+    Comma,
+
     Question,
     Colon,
 }
@@ -82,6 +85,7 @@ fn token_from_identifier(identifier: &str) -> Option<Token> {
         "bool"  => Some(Token::Bool),
         "and"   => Some(Token::And),
         "or"    => Some(Token::Or),
+        "fn"    => Some(Token::Fn),
         _       => None
     }
 }
@@ -157,6 +161,8 @@ impl fmt::Display for Token {
             Token::Int => write!(f, "Type(Int)"),
             Token::Real => write!(f, "Type(Real)"),
             Token::Bool => write!(f, "Type(Bool)"),
+            Token::Fn => write!(f, "Fn"),
+            Token::Comma => write!(f, "Comma(,)"),
         }
     }
 }
@@ -178,6 +184,7 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         '=' => Ok(Token::Equal),
         '?' => Ok(Token::Question),
         ':' => Ok(Token::Colon),
+        ',' => Ok(Token::Comma),
         ' ' | '\t' | '\n' => Ok(Token::Space),
         _ => Err(TokenizerError::IllegalToken(ch)),
     }

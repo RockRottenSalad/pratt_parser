@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::function::Function;
 use crate::ast::{AstError, Expression, LiteralKind};
 use crate::interpreter::statement::*;
 use crate::parser::parser::{Parser, ParserError, parse_expression, parse_statement};
@@ -55,6 +56,10 @@ impl State {
         &mut self.env
     }
 
+    pub fn borrow_env(&mut self) -> &Environment {
+        &self.env
+    }
+
     pub fn enter_scope(&mut self) {
         let prev = std::mem::replace(&mut self.env, Environment::new(None));
         self.env.set_parent(prev)
@@ -73,6 +78,7 @@ impl State {
 
 pub struct Environment {
     state: HashMap<Rc<str>, LiteralKind>,
+    functions: HashMap<Rc<str>, Rc<Function>>,
     parent: Option<Box<Environment>>,
 }
 
@@ -80,6 +86,7 @@ impl Environment {
     pub fn new(parent: Option<Box<Environment>>) -> Box<Self> {
         Box::new(Environment {
             state: HashMap::with_capacity(10),
+            functions: HashMap::with_capacity(10),
             parent,
         })
     }
@@ -124,6 +131,21 @@ impl Environment {
             },
         }
     }
+
+    pub fn get_function(&self, name: &str) -> Option<&Function> {
+        match self.functions.get(name) {
+            Some(v) => Some(v),
+            None => match &self.parent {
+                Some(env) => env.get_function(name),
+                None => None,
+            },
+        }
+    }
+
+    pub fn declare_function(&mut self, name: &str, f: Rc<Function>) {
+        self.functions.insert(name.into(), f);
+    }
+
 }
 
 pub fn interpret_as_exprs(

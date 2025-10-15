@@ -5,6 +5,8 @@
 use crate::Environment;
 use crate::ast::{Expression, LiteralKind, AstError};
 use std::rc::Rc;
+use std::rc::Weak;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct Argument {
@@ -18,6 +20,12 @@ impl Argument {
     }
 }
 
+impl fmt::Display for Argument {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {}", self.name, self.kind.type_as_str())
+    }
+}
+
 #[derive(Debug)]
 pub struct Function {
     pub parameters: Vec<Argument>,
@@ -26,16 +34,15 @@ pub struct Function {
 
 impl Function {
 
-    pub fn evaluate(&self, args: &Vec<Box<Expression>>) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, args: &Vec<Box<Expression>>, env: Weak<Environment>) -> Result<LiteralKind, AstError> {
 
         if args.len() != self.parameters.len() {
             return Err(AstError::IncorrectNumberOfArguments(self.parameters.len(), args.len()))
         }
 
-        // The actual env is totally ignored right now
-        let mut local_env = Environment::new(None);
+        let mut local_env = Environment::new_non_owning(Weak::clone(&env));
 
-        for (i, v) in args.iter().map(|x| x.evaluate(None)).enumerate() {
+        for (i, v) in args.iter().map(|x| x.evaluate(Some(Weak::clone(&env)))).enumerate() {
             let value = v?;
 
             if !value.is_same_type(&self.parameters[i].kind) {
@@ -45,7 +52,14 @@ impl Function {
             local_env.declare_variable(&self.parameters[i].name, value)
         }
 
-        self.body.evaluate(Some(&local_env))
+        let local_env = Rc::new(*local_env);
+        self.body.evaluate(Some(Rc::downgrade(&local_env)))
+    }
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} -> {}", self.parameters, self.body)
     }
 }
 

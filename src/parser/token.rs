@@ -8,6 +8,8 @@ use std::{str::CharIndices, vec::Vec};
 
 use crate::utils::types::Either;
 
+const COMMENT_SYMBOL: char = '#';
+
 #[derive(Debug)]
 pub enum TokenizerError {
     IllegalToken(char),
@@ -258,6 +260,15 @@ fn parse_identifier_or_keyword<'a>(chs: &mut Peekable<CharIndices>, text: &str) 
     }
 }
 
+fn consume_comment(chs: &mut Peekable<CharIndices>) {
+    while let Some(&(_, ch)) = chs.peek() {
+        match ch {
+            '\n' | '\r' => return,
+            _ => { chs.next(); }
+        }
+    }
+}
+
 pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
     let radix = 10;
     let mut tokens: Vec<Token> = Vec::with_capacity(text.len());
@@ -265,7 +276,9 @@ pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
     let mut chs = text.char_indices().peekable();
 
     while let Some(&(i, ch)) = chs.peek() {
-        if ch.is_digit(radix) {
+        if ch == COMMENT_SYMBOL {
+            consume_comment(&mut chs);
+        } else if ch.is_digit(radix) {
             match parse_numeric_literal_new(&mut chs) {
                 Either::Left(integer) => tokens.push(Token::LiteralInteger(integer)),
                 Either::Right(real) => tokens.push(Token::LiteralReal(real)),

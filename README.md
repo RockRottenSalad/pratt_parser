@@ -23,21 +23,18 @@ cargo run -- demo_files/example.txt
 
 ## Notes about latest commits
 
+Adding support for single line comments using the '#' symbol.
+
 Scope now exists, see `demo_files/scope_example.txt` for an example.
+Simple expression functions now exists, see `demo_files/func.txt` for an example.
+
+Note that the body of a function can currently only consist of an expression.
+The current implementation is somewhat hacky and relies on the use of the
+"unsafe" keyword in five places. Once that is fixed, adding support for statements
+in the body of a function will be the next goal.
 
 The '!' negation operator does not exist yet, use '-' for negating
 booleans.
-
-Using numeric operators with booleans will implicitly typecast the boolean to
-an integer or real depending on the expression. Note that false == 0 and true
-== 1 for integers. For reals, any value greater than 0 is treated as true.
-
-
-In expressions that evaluate to a numeric results, numbers which are > 0 will
-be considered true in the ternary operator and if statement. Although it may
-not seem like it, internally booleans and numerics are in fact represented as
-bools, ints or floats.
-
 
 ## The supported language thus far
 
@@ -53,11 +50,13 @@ changing pre-existing variable, the old value is simply overriden.
 Statement -> Statement*
 Statement -> PrintStatement
 Statement -> DeclareVarStatement
+Statement -> DeclareFuncStatement
 Statement -> IfStatement
 Statement -> BlockStatement
 
 PrintStatement -> 'print' Expr
 DeclareVarStatement -> 'let' Identifier '=' Expr 
+DeclareFuncStatement -> 'let' Identifier '=' 'fn' '(' (Identifier Type(,)?)* ')' '->' Expr
 IfStatement -> 'if' Expr Statement ('else' Statement)?
 BlockStatement -> '{' Statement '}'
 

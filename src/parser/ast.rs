@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 use crate::Environment;
-use std::rc::Rc;
 use std::fmt;
+use std::rc::Rc;
+use std::rc::Weak;
 use std::result::Result;
 
 #[derive(Debug)]
@@ -13,7 +14,7 @@ pub enum AstError {
     CannotImplicitityCastNumericToBool,
     UnresolvedReference(Rc<str>),
     IncorrectNumberOfArguments(usize, usize),
-    IncorrectArgumentType(LiteralKind, LiteralKind, usize)
+    IncorrectArgumentType(LiteralKind, LiteralKind, usize),
 }
 
 impl fmt::Display for AstError {
@@ -21,11 +22,21 @@ impl fmt::Display for AstError {
         match self {
             AstError::DivisionByZero => write!(f, "Division by zero"),
             AstError::IllegalUnaryOperator => write!(f, "Illegal unary operator"),
-            AstError::CannotImplicitityCastBoolToNumeric => write!(f, "Cannot implicity cast bool to numeric"),
-            AstError::CannotImplicitityCastNumericToBool => write!(f, "Cannot implicity cast numeric to bool"),
+            AstError::CannotImplicitityCastBoolToNumeric => {
+                write!(f, "Cannot implicity cast bool to numeric")
+            }
+            AstError::CannotImplicitityCastNumericToBool => {
+                write!(f, "Cannot implicity cast numeric to bool")
+            }
             AstError::UnresolvedReference(x) => write!(f, "Unresolved reference('{x}')"),
-            AstError::IncorrectNumberOfArguments(e, g) => write!(f, "Incorrect number of arguments. Expected '{e}', got '{g}'"),
-            AstError::IncorrectArgumentType(e, g, i) => write!(f, "Incorrect argument type. Expected '{e}', got '{g}' at argument '{i}"),
+            AstError::IncorrectNumberOfArguments(e, g) => write!(
+                f,
+                "Incorrect number of arguments. Expected '{e}', got '{g}'"
+            ),
+            AstError::IncorrectArgumentType(e, g, i) => write!(
+                f,
+                "Incorrect argument type. Expected '{e}', got '{g}' at argument '{i}"
+            ),
         }
     }
 }
@@ -69,19 +80,19 @@ impl LiteralKind {
     pub fn is_integer(&self) -> bool {
         match self {
             LiteralKind::Integer(_) => true,
-            _ => false
+            _ => false,
         }
     }
     pub fn is_real(&self) -> bool {
         match self {
             LiteralKind::Real(_) => true,
-            _ => false
+            _ => false,
         }
     }
     pub fn is_boolean(&self) -> bool {
         match self {
             LiteralKind::Boolean(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -100,10 +111,10 @@ impl LiteralKind {
             LiteralKind::Void => LiteralKind::Void,
             LiteralKind::Boolean(_) => LiteralKind::Boolean(self.is_true()),
             LiteralKind::Integer(_) => match *self {
-                LiteralKind::Real(x)    => LiteralKind::Integer(x as i32),
+                LiteralKind::Real(x) => LiteralKind::Integer(x as i32),
                 LiteralKind::Boolean(x) => LiteralKind::Integer(x as i32),
                 LiteralKind::Integer(x) => LiteralKind::Integer(x),
-                LiteralKind::Void       => LiteralKind::Integer(0)
+                LiteralKind::Void => LiteralKind::Integer(0),
             },
             LiteralKind::Real(_) => match *self {
                 LiteralKind::Real(x) => LiteralKind::Real(x),
@@ -158,7 +169,14 @@ impl LiteralKind {
         }
     }
 
-
+    pub fn type_as_str(&self) -> &str {
+        match self {
+            LiteralKind::Boolean(_) => "Boolean",
+            LiteralKind::Integer(_) => "Integer",
+            LiteralKind::Real(_) => "Real",
+            LiteralKind::Void => "Void",
+        }
+    }
 }
 
 impl fmt::Display for LiteralKind {
@@ -264,41 +282,57 @@ pub enum Expression {
 
     Reference(Rc<str>),
 
-    FunctionCall(Rc<str>, Vec<Box<Expression>>)
+    FunctionCall(Rc<str>, Vec<Box<Expression>>),
 }
 
 impl Expression {
-    pub fn evaluate(&self, env: Option<&Environment>) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, env: Option<Weak<Environment>>) -> Result<LiteralKind, AstError> {
         match self {
             Expression::Literal(w) => Ok(w.clone()),
             Expression::Grouping(expr) => expr.evaluate(env),
             Expression::BinaryAddition(left, right) => {
-                numeric_reduce!(+, left.evaluate(env)?, right.evaluate(env)?)
+                numeric_reduce!(+, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
             }
             Expression::BinarySubtraction(left, right) => {
-                numeric_reduce!(-, left.evaluate(env)?, right.evaluate(env)?)
+                numeric_reduce!(-, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
             }
             Expression::BinaryMultiplication(left, right) => {
-                numeric_reduce!(*, left.evaluate(env)?, right.evaluate(env)?)
+                numeric_reduce!(*, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
             }
             Expression::BinaryDivision(left, right) => {
-                let right = right.evaluate(env)?;
+                let right = right.evaluate(env.clone())?;
                 if right.is_zero() {
                     return Err(AstError::DivisionByZero);
                 }
-                return numeric_reduce!(/, left.evaluate(env)?, right);
+                return numeric_reduce!(/, left.evaluate(env.clone())?, right);
             }
 
-            Expression::GreaterThan(left, right) => cmp_reduce!(>, left.evaluate(env)?, right.evaluate(env)?),
-            Expression::GreaterEqualThan(left, right) => cmp_reduce!(>=, left.evaluate(env)?, right.evaluate(env)?),
-            Expression::LessThan(left, right) => cmp_reduce!(<, left.evaluate(env)?, right.evaluate(env)?),
-            Expression::LessEqualThan(left, right) => cmp_reduce!(<=, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::GreaterThan(left, right) => {
+                cmp_reduce!(>, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
+            Expression::GreaterEqualThan(left, right) => {
+                cmp_reduce!(>=, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
+            Expression::LessThan(left, right) => {
+                cmp_reduce!(<, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
+            Expression::LessEqualThan(left, right) => {
+                cmp_reduce!(<=, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
 
-            Expression::EqualTo(left, right) => cmp_reduce!(==, left.evaluate(env)?, right.evaluate(env)?),
-            Expression::NotEqualTo(left, right) => cmp_reduce!(!=, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::EqualTo(left, right) => {
+                cmp_reduce!(==, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
+            Expression::NotEqualTo(left, right) => {
+                cmp_reduce!(!=, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
 
-            Expression::And(left, right) => boolean_reduce!(&&, left.evaluate(env)?, right.evaluate(env)?),
-            Expression::Or(left, right) => boolean_reduce!(||, left.evaluate(env)?, right.evaluate(env)?),
+            Expression::And(left, right) => {
+                boolean_reduce!(&&, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
+            Expression::Or(left, right) => {
+                boolean_reduce!(||, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+            }
 
             Expression::UnaryNegation(expr) => Ok(match expr.evaluate(env)? {
                 LiteralKind::Integer(x) => LiteralKind::Integer(-x),
@@ -309,8 +343,7 @@ impl Expression {
             Expression::UnaryAddition(expr) => Ok(expr.evaluate(env)?),
 
             Expression::Ternary(predicate, left, right) => {
-
-                let predicate = predicate.evaluate(env)?;
+                let predicate = predicate.evaluate(env.clone())?;
                 if !predicate.is_boolean() {
                     return Err(AstError::CannotImplicitityCastNumericToBool);
                 }
@@ -320,34 +353,31 @@ impl Expression {
                 } else {
                     Ok(right.evaluate(env)?)
                 }
-            },
+            }
 
             Expression::Typecast(expr, kind) => Ok(expr.evaluate(env)?.typecast(kind)),
 
             Expression::Reference(var) => match env {
-                Some(env) => match env.get_variable(var) {
-                    Some(v) => Ok(v),
-                    None => Err(AstError::UnresolvedReference(Rc::clone(var))),
-                }
-                None => Err(AstError::UnresolvedReference(Rc::clone(var)))
-
-        },
-
-            Expression::FunctionCall(y, xs) => match env {
-                Some(env) => match env.get_function(y) {
-                    Some(f) => f.evaluate(xs),
-                    None => todo!()
+                Some(env) => unsafe {
+                    match (*env.as_ptr()).get_variable(var) {
+                        Some(v) => Ok(v),
+                        None => Err(AstError::UnresolvedReference(Rc::clone(var))),
+                    }
                 },
-                None => todo!()
-            }
-                
-//            Expression::Reference(x) =>  x.evaluate(),
+                None => Err(AstError::UnresolvedReference(Rc::clone(var))),
+            },
+
+            Expression::FunctionCall(f_name, xs) => match env {
+                Some(env) => unsafe {
+                    match (*env.as_ptr()).get_function(f_name) {
+                        Some(f) => f.evaluate(xs, env),
+                        None => Err(AstError::UnresolvedReference(Rc::clone(f_name))),
+                    }
+                },
+                None => Err(AstError::UnresolvedReference(Rc::clone(f_name))),
+            },
         }
     }
-
-//    fn infer_type(&self) -> LiteralKind {
-//
-//    }
 }
 
 impl fmt::Display for Expression {
@@ -378,8 +408,7 @@ impl fmt::Display for Expression {
 
             Expression::And(l, r) => write!(f, "(and {l} {r})"),
             Expression::Or(l, r) => write!(f, "(or {l} {r})"),
-            Expression::FunctionCall(_y, _xs) => write!(f, "(() func ...)"), // TODO
+            Expression::FunctionCall(y, xs) => write!(f, "(() {y} {:?})", xs),
         }
     }
 }
-

@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::rc::Weak;
+use crate::utils::types::Either;
 use crate::function::Function;
 use crate::ast::{AstError, Expression, LiteralKind};
 use crate::interpreter::statement::*;
@@ -52,12 +54,14 @@ impl State {
         }
     }
 
-    pub fn env(&mut self) -> &mut Environment {
-        &mut self.env
+    pub fn env(&mut self) -> Weak<Environment> {
+        unsafe {
+            Weak::from_raw(&*self.env)
+        }
     }
 
-    pub fn borrow_env(&mut self) -> &Environment {
-        &self.env
+    pub fn borrow_env(&mut self) -> &mut Environment {
+        &mut self.env
     }
 
     pub fn enter_scope(&mut self) {
@@ -67,7 +71,9 @@ impl State {
 
     pub fn leave_scope(&mut self) -> Result<(), InterpreterError> {
         if !self.env.has_parent() {
-            panic!("Left scope without parent - WIP, should not panic in the future")
+            panic!("Interpreter performed illegal action: Left scope without parent")
+        } else if self.env.has_weak_ref_to_parent() {
+            panic!("Interpreter performed illegal action: Left scope with weak ref to parent")
         }
 
         self.env = self.env.parent();
@@ -76,10 +82,16 @@ impl State {
     }
 }
 
+/*
+* The unsafe weak pointer BS is placeholder garbage until I find a better way to deal with
+* functions. They introduce their own state combined with the current state. However, since that
+* recursive call is made from within
+*
+*/
 pub struct Environment {
     state: HashMap<Rc<str>, LiteralKind>,
     functions: HashMap<Rc<str>, Rc<Function>>,
-    parent: Option<Box<Environment>>,
+    parent: Option<Either<Box<Environment>, Weak<Environment>>>,
 }
 
 impl Environment {
@@ -87,12 +99,23 @@ impl Environment {
         Box::new(Environment {
             state: HashMap::with_capacity(10),
             functions: HashMap::with_capacity(10),
-            parent,
+            parent: match parent {
+                None => None,
+                Some(p) => Some(Either::Left(p))
+            },
+        })
+    }
+
+    pub fn new_non_owning(parent: Weak<Environment>) -> Box<Self> {
+        Box::new(Environment {
+            state: HashMap::with_capacity(10),
+            functions: HashMap::with_capacity(10),
+            parent: Some(Either::Right(parent))
         })
     }
 
     pub fn set_parent(&mut self, parent: Box<Environment>) {
-        self.parent = Some(parent);
+        self.parent = Some(Either::Left(parent));
     }
 
     pub fn parent(&mut self) -> Box<Self> {
@@ -101,11 +124,25 @@ impl Environment {
         }
 
         let tmp = std::mem::replace(&mut self.parent, None);
-        tmp.unwrap()
+
+        match tmp.unwrap() {
+            Either::Left(x) => x,
+            _ => panic!("Unwrapped non-owning env - this should never occur")
+        }
     }
 
     pub fn has_parent(&self) -> bool {
         self.parent.is_some()
+    }
+
+    pub fn has_weak_ref_to_parent(&self) -> bool {
+        match &self.parent {
+            None => false,
+            Some(p) => match p {
+                Either::Left(_) => false,
+                Either::Right(_) => true
+            }
+        }
     }
 
     pub fn declare_variable(&mut self, name: &str, value: LiteralKind) {
@@ -116,27 +153,27 @@ impl Environment {
         match self.state.get(name) {
             Some(v) => Some(v.clone()),
             None => match &self.parent {
-                Some(env) => env.get_variable(name),
+                Some(env) => match env {
+                    Either::Left(x) => x.get_variable(name),
+                    Either::Right(x) => unsafe { (*x.as_ptr()).get_variable(name) },
+                },
                 None => None,
             },
         }
     }
 
     pub fn variable_exists(&self, name: &str) -> bool {
-        match self.state.contains_key(name) {
-            true => true,
-            false => match &self.parent {
-                Some(env) => env.variable_exists(name),
-                None => false,
-            },
-        }
+        return self.get_variable(name).is_some()
     }
 
     pub fn get_function(&self, name: &str) -> Option<&Function> {
         match self.functions.get(name) {
             Some(v) => Some(v),
             None => match &self.parent {
-                Some(env) => env.get_function(name),
+                Some(env) => match env {
+                    Either::Left(x) => x.get_function(name),
+                    Either::Right(x) => unsafe { (*x.as_ptr()).get_function(name) },
+                },
                 None => None,
             },
         }

@@ -1,0 +1,19 @@
+
+let a = 10
+
+let doubleIt = fn (x int) -> x * 2
+print doubleIt(15)
+
+let add = fn (x int y int) -> x + y
+
+# comma between arguments is optional
+print add(7 9)
+print add(7, 9)
+
+# Nested function calls are supported
+print add(doubleIt(10) 5)
+
+let scopeAccess = fn (x int) -> a + x
+
+print scopeAccess(1)
+

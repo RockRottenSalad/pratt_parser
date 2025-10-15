@@ -25,11 +25,11 @@ impl Statement {
                 Err(e) => return Err(InterpreterError::Ast(e)),
             },
             Statement::Assignment(var, expr) => match expr.evaluate(Some(state.env())) {
-                Ok(x) => state.env().declare_variable(&Rc::clone(var), x),
+                Ok(x) => state.borrow_env().declare_variable(&Rc::clone(var), x),
                 Err(e) => return Err(InterpreterError::Ast(e)),
             },
             Statement::FunctionAssignment(var, func) => {
-                state.env().declare_function(var, func.clone())
+                state.borrow_env().declare_function(var, func.clone())
             },
             Statement::If(cond, stm) => match cond.evaluate(Some(state.env())) {
                 Ok(v) => {

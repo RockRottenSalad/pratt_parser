@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use crate::Environment;
-use crate::State;
 use std::rc::Rc;
 use std::fmt;
 use std::result::Result;
@@ -13,6 +12,8 @@ pub enum AstError {
     CannotImplicitityCastBoolToNumeric,
     CannotImplicitityCastNumericToBool,
     UnresolvedReference(Rc<str>),
+    IncorrectNumberOfArguments(usize, usize),
+    IncorrectArgumentType(LiteralKind, LiteralKind, usize)
 }
 
 impl fmt::Display for AstError {
@@ -23,6 +24,8 @@ impl fmt::Display for AstError {
             AstError::CannotImplicitityCastBoolToNumeric => write!(f, "Cannot implicity cast bool to numeric"),
             AstError::CannotImplicitityCastNumericToBool => write!(f, "Cannot implicity cast numeric to bool"),
             AstError::UnresolvedReference(x) => write!(f, "Unresolved reference('{x}')"),
+            AstError::IncorrectNumberOfArguments(e, g) => write!(f, "Incorrect number of arguments. Expected '{e}', got '{g}'"),
+            AstError::IncorrectArgumentType(e, g, i) => write!(f, "Incorrect argument type. Expected '{e}', got '{g}' at argument '{i}"),
         }
     }
 }
@@ -261,7 +264,7 @@ pub enum Expression {
 
     Reference(Rc<str>),
 
-    FunctionCall(Rc<str>, Vec<LiteralKind>)
+    FunctionCall(Rc<str>, Vec<Box<Expression>>)
 }
 
 impl Expression {
@@ -341,6 +344,10 @@ impl Expression {
 //            Expression::Reference(x) =>  x.evaluate(),
         }
     }
+
+//    fn infer_type(&self) -> LiteralKind {
+//
+//    }
 }
 
 impl fmt::Display for Expression {

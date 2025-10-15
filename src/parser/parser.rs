@@ -139,16 +139,18 @@ fn typecast_expr_handler(expr: Box<Expression>, p: &mut Parser) -> Result<Box<Ex
     Ok(Box::new(Expression::Typecast(expr, cast_type)))
 }
 
-fn args_expr_handler(p: &mut Parser) -> Result<Vec<LiteralKind>, ParserError> {
+fn args_expr_handler(p: &mut Parser) -> Result<Vec<Box<Expression>>, ParserError> {
     let mut v = Vec::new();
 
     expect(Token::ParenL, p)?;
 
-    match p.next() {
-        Token::LiteralInteger(x) => v.push(LiteralKind::Integer(x)),
-        _ => v.push(LiteralKind::Integer(0))
-    }
+    while p.peek() != Token::ParenR && p.peek() != Token::EOF {
+        v.push(
+            parse_expr(p, 0)?
+        );
 
+        if p.peek() == Token::Comma { p.consume() }
+    }
     expect(Token::ParenR, p)?;
 
     Ok(v)
@@ -312,23 +314,37 @@ fn function_handler(p: &mut Parser) -> Result<Function, ParserError> {
 
     expect(Token::ParenL, p)?;
 
-    p.consume();
-//    expect(Token::Identifier("".into()), p)?;
-    expect(Token::Int, p)?;
+    let mut args: Vec<Argument> = Vec::with_capacity(10);
 
+    while p.peek() != Token::ParenR && p.peek() != Token::EOF {
+        let name = match p.next() {
+            Token::Identifier(x) => x,
+            _ => return Err(ParserError::ExpectedIdentifier(p.index()))
+        };
+
+        let kind = match p.next() {
+            Token::Int  => LiteralKind::default_integer(),
+            Token::Real => LiteralKind::default_real(),
+            Token::Bool => LiteralKind::default_boolean(),
+            _ => return Err(ParserError::ExpectedType(p.index()))
+        };
+
+        args.push(
+            Argument::new(name, kind)
+        );
+
+        if p.peek() == Token::Comma { p.consume() }
+    }
     expect(Token::ParenR, p)?;
 
     expect(Token::Minus, p)?;
     expect(Token::GreaterThan, p)?;
 
     let expr = parse_expr(p, 0)?;
-    let arg = Argument {
-        name: "x".into(),
-        kind: LiteralKind::Integer(0)
-    };
 
-    let func = Function {parameters: vec![arg],
-        body: expr, return_value: LiteralKind::Integer(0)
+    let func = Function {
+        parameters: args,
+        body: expr, 
     };
 
     return Ok(func)

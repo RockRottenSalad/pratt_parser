@@ -23,7 +23,7 @@ cargo run -- demo_files/example.txt
 
 ## Notes about latest commits
 
-Adding support for single line comments using the '#' symbol.
+Added support for single line comments using the '#' symbol.
 
 Scope now exists, see `demo_files/scope_example.txt` for an example.
 Simple expression functions now exists, see `demo_files/func.txt` for an example.

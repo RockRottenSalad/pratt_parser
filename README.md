@@ -3,14 +3,15 @@
 This project implements a simple pratt parser which produces an AST
 that can be evaluated.
 
-The plan is to turn this into a simple interpreted (maybe functional) language.
+The plan is to turn this into a simple interpreted language. The language is
+still unnamed.
 
 ## Using the program
 
-In not-so-good repl mode. There is no support for arrow keys and it expects the
+In not-so-good REPL mode. There is no support for arrow keys and it expects the
 entire program to be written on one line(i.e. line breaks after '{' are not
 allowed). Exit with Ctrl-C. You do not have to type 'print' whilst in REPL
-mode, simply running the expression will implicity print it.
+mode, simply running the expression will implicitly print it.
 ```
 cargo run -- cli
 ```
@@ -26,8 +27,10 @@ cargo run -- demo_files/example.txt
 
 Added support for single line comments using the '#' symbol.
 
-Scope now exists, see `demo_files/scope_example.txt` for an example.
-Simple expression functions now exists, see `demo_files/func.txt` for an example.
+Scope, simple expression functions and while loops have been added, see
+`demo_files/scope_example.txt`, `demo_files/func.txt` and
+`demo_files/while.txt` respectively.
+
 
 Note that the body of a function can currently only consist of an expression.
 The current implementation is somewhat hacky and relies on the use of the
@@ -63,7 +66,7 @@ WhileLoopStatement -> 'while' (Expr -> Boolean) Statement
 
 Identifier -> ['a'-'z'|'A'-'Z']+
 
-Expr -> Expr ['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>='|'%'] Expr
+Expr -> (Expr -> Number) ['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>='|'%'] (Expr -> Number)
 Expr -> Expr 'as' Type
 Expr -> (Expr -> Boolean) ['and'|'or'] (Expr -> Boolean)
 Expr -> Literal

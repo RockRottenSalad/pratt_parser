@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use std::rc::Weak;
 use crate::utils::types::Either;
 use crate::function::Function;
 use crate::ast::{AstError, Expression, LiteralKind};
@@ -54,10 +53,8 @@ impl State {
         }
     }
 
-    pub fn env(&mut self) -> Weak<Environment> {
-        unsafe {
-            Weak::from_raw(&*self.env)
-        }
+    pub fn env(&mut self) -> *const Environment {
+        &*self.env
     }
 
     pub fn borrow_env(&mut self) -> &mut Environment {
@@ -91,7 +88,7 @@ impl State {
 pub struct Environment {
     state: HashMap<Rc<str>, LiteralKind>,
     functions: HashMap<Rc<str>, Rc<Function>>,
-    parent: Option<Either<Box<Environment>, Weak<Environment>>>,
+    parent: Option<Either<Box<Environment>, *const Environment>>,
 }
 
 impl Environment {
@@ -106,7 +103,7 @@ impl Environment {
         })
     }
 
-    pub fn new_non_owning(parent: Weak<Environment>) -> Box<Self> {
+    pub fn new_non_owning(parent: *const Environment) -> Box<Self> {
         Box::new(Environment {
             state: HashMap::with_capacity(10),
             functions: HashMap::with_capacity(10),
@@ -155,7 +152,7 @@ impl Environment {
             None => match &self.parent {
                 Some(env) => match env {
                     Either::Left(x) => x.get_variable(name),
-                    Either::Right(x) => unsafe { (*x.as_ptr()).get_variable(name) },
+                    Either::Right(x) => unsafe { (**x).get_variable(name) },
                 },
                 None => None,
             },
@@ -172,7 +169,7 @@ impl Environment {
             None => match &self.parent {
                 Some(env) => match env {
                     Either::Left(x) => x.get_function(name),
-                    Either::Right(x) => unsafe { (*x.as_ptr()).get_function(name) },
+                    Either::Right(x) => unsafe { (**x).get_function(name) },
                 },
                 None => None,
             },

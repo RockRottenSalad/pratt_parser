@@ -5,7 +5,6 @@
 use crate::Environment;
 use crate::ast::{Expression, LiteralKind, AstError};
 use std::rc::Rc;
-use std::rc::Weak;
 use std::fmt;
 
 #[derive(Debug)]
@@ -34,15 +33,15 @@ pub struct Function {
 
 impl Function {
 
-    pub fn evaluate(&self, args: &Vec<Box<Expression>>, env: Weak<Environment>) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, args: &Vec<Box<Expression>>, env: *const Environment) -> Result<LiteralKind, AstError> {
 
         if args.len() != self.parameters.len() {
             return Err(AstError::IncorrectNumberOfArguments(self.parameters.len(), args.len()))
         }
 
-        let mut local_env = Environment::new_non_owning(Weak::clone(&env));
+        let mut local_env = Environment::new_non_owning(env);
 
-        for (i, v) in args.iter().map(|x| x.evaluate(Some(Weak::clone(&env)))).enumerate() {
+        for (i, v) in args.iter().map(|x| x.evaluate(Some(env))).enumerate() {
             let value = v?;
 
             if !value.is_same_type(&self.parameters[i].kind) {
@@ -52,8 +51,7 @@ impl Function {
             local_env.declare_variable(&self.parameters[i].name, value)
         }
 
-        let local_env = Rc::new(*local_env);
-        self.body.evaluate(Some(Rc::downgrade(&local_env)))
+        self.body.evaluate(Some(&*local_env))
     }
 }
 

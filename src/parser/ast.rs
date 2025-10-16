@@ -3,7 +3,6 @@
 use crate::Environment;
 use std::fmt;
 use std::rc::Rc;
-use std::rc::Weak;
 use std::result::Result;
 
 #[derive(Debug)]
@@ -286,7 +285,7 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn evaluate(&self, env: Option<Weak<Environment>>) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, env: Option<*const Environment>) -> Result<LiteralKind, AstError> {
         match self {
             Expression::Literal(w) => Ok(w.clone()),
             Expression::Grouping(expr) => expr.evaluate(env),
@@ -359,7 +358,7 @@ impl Expression {
 
             Expression::Reference(var) => match env {
                 Some(env) => unsafe {
-                    match (*env.as_ptr()).get_variable(var) {
+                    match (*env).get_variable(var) {
                         Some(v) => Ok(v),
                         None => Err(AstError::UnresolvedReference(Rc::clone(var))),
                     }
@@ -369,7 +368,7 @@ impl Expression {
 
             Expression::FunctionCall(f_name, xs) => match env {
                 Some(env) => unsafe {
-                    match (*env.as_ptr()).get_function(f_name) {
+                    match (*env).get_function(f_name) {
                         Some(f) => f.evaluate(xs, env),
                         None => Err(AstError::UnresolvedReference(Rc::clone(f_name))),
                     }

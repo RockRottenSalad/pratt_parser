@@ -3,6 +3,7 @@ mod parser;
 mod tests;
 mod utils;
 
+use crate::State;
 use crate::interpreter::interpreter::*;
 //use crate::parser::parser::parse;
 //use crate::token::{*};

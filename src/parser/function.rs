@@ -33,7 +33,7 @@ pub struct Function {
 
 impl Function {
 
-    pub fn evaluate(&self, args: &Vec<Box<Expression>>, env: *const Environment) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, args: &Vec<Box<Expression>>, env: *mut Environment) -> Result<LiteralKind, AstError> {
 
         if args.len() != self.parameters.len() {
             return Err(AstError::IncorrectNumberOfArguments(self.parameters.len(), args.len()))
@@ -51,7 +51,7 @@ impl Function {
             local_env.declare_variable(&self.parameters[i].name, value)
         }
 
-        self.body.evaluate(Some(&*local_env))
+        self.body.evaluate(Some(&mut *local_env))
     }
 }
 

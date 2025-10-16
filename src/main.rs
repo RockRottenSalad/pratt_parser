@@ -29,6 +29,8 @@ fn main() {
             let mut buffer = String::new();
             let _ = stdin.read_line(&mut buffer);
 
+            if buffer.trim() == "" { continue }
+
             match interpret_repl_mode(&buffer, &mut state) {
                 Ok(()) => {},
                 Err(e) => {println!("{e}");},

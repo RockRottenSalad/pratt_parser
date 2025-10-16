@@ -257,9 +257,11 @@ pub enum Expression {
     BinarySubtraction(Box<Expression>, Box<Expression>),
     BinaryMultiplication(Box<Expression>, Box<Expression>),
     BinaryDivision(Box<Expression>, Box<Expression>),
+    BinaryModulo(Box<Expression>, Box<Expression>),
 
     //    Unary(Operator, Box<Expression>),
-    UnaryNegation(Box<Expression>),
+    UnaryNumericNegation(Box<Expression>),
+    UnaryBooleanNegation(Box<Expression>),
     UnaryAddition(Box<Expression>),
 
     GreaterThan(Box<Expression>, Box<Expression>),
@@ -285,64 +287,69 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn evaluate(&self, env: Option<*const Environment>) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, env: Option<*mut Environment>) -> Result<LiteralKind, AstError> {
         match self {
             Expression::Literal(w) => Ok(w.clone()),
             Expression::Grouping(expr) => expr.evaluate(env),
             Expression::BinaryAddition(left, right) => {
-                numeric_reduce!(+, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                numeric_reduce!(+, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::BinarySubtraction(left, right) => {
-                numeric_reduce!(-, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                numeric_reduce!(-, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::BinaryMultiplication(left, right) => {
-                numeric_reduce!(*, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                numeric_reduce!(*, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::BinaryDivision(left, right) => {
-                let right = right.evaluate(env.clone())?;
+                let right = right.evaluate(env)?;
                 if right.is_zero() {
                     return Err(AstError::DivisionByZero);
                 }
-                return numeric_reduce!(/, left.evaluate(env.clone())?, right);
+                return numeric_reduce!(/, left.evaluate(env)?, right);
             }
-
+            Expression::BinaryModulo(left, right) => {
+                numeric_reduce!(%, left.evaluate(env)?, right.evaluate(env)? )
+            }
             Expression::GreaterThan(left, right) => {
-                cmp_reduce!(>, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                cmp_reduce!(>, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::GreaterEqualThan(left, right) => {
-                cmp_reduce!(>=, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                cmp_reduce!(>=, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::LessThan(left, right) => {
-                cmp_reduce!(<, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                cmp_reduce!(<, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::LessEqualThan(left, right) => {
-                cmp_reduce!(<=, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                cmp_reduce!(<=, left.evaluate(env)?, right.evaluate(env)?)
             }
 
             Expression::EqualTo(left, right) => {
-                cmp_reduce!(==, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                cmp_reduce!(==, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::NotEqualTo(left, right) => {
-                cmp_reduce!(!=, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                cmp_reduce!(!=, left.evaluate(env)?, right.evaluate(env)?)
             }
 
             Expression::And(left, right) => {
-                boolean_reduce!(&&, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                boolean_reduce!(&&, left.evaluate(env)?, right.evaluate(env)?)
             }
             Expression::Or(left, right) => {
-                boolean_reduce!(||, left.evaluate(env.clone())?, right.evaluate(env.clone())?)
+                boolean_reduce!(||, left.evaluate(env)?, right.evaluate(env)?)
             }
 
-            Expression::UnaryNegation(expr) => Ok(match expr.evaluate(env)? {
+            Expression::UnaryNumericNegation(expr) => Ok(match expr.evaluate(env)? {
                 LiteralKind::Integer(x) => LiteralKind::Integer(-x),
                 LiteralKind::Real(x) => LiteralKind::Real(-x),
+                _ => {return Err(AstError::CannotImplicitityCastBoolToNumeric)}
+            }),
+            Expression::UnaryBooleanNegation(expr) => Ok(match expr.evaluate(env)? {
                 LiteralKind::Boolean(x) => LiteralKind::Boolean(!x),
-                LiteralKind::Void => LiteralKind::Void,
+                _ => {return Err(AstError::CannotImplicitityCastNumericToBool)}
             }),
             Expression::UnaryAddition(expr) => Ok(expr.evaluate(env)?),
 
             Expression::Ternary(predicate, left, right) => {
-                let predicate = predicate.evaluate(env.clone())?;
+                let predicate = predicate.evaluate(env)?;
                 if !predicate.is_boolean() {
                     return Err(AstError::CannotImplicitityCastNumericToBool);
                 }
@@ -388,6 +395,7 @@ impl fmt::Display for Expression {
             Expression::BinarySubtraction(l, r) => write!(f, "(- {l} {r})"),
             Expression::BinaryDivision(l, r) => write!(f, "(/ {l} {r})"),
             Expression::BinaryMultiplication(l, r) => write!(f, "(* {l} {r})"),
+            Expression::BinaryModulo(l, r) => write!(f, "(% {l} {r})"),
 
             Expression::GreaterThan(l, r) => write!(f, "(> {l} {r})"),
             Expression::GreaterEqualThan(l, r) => write!(f, "(>= {l} {r})"),
@@ -397,7 +405,8 @@ impl fmt::Display for Expression {
             Expression::EqualTo(l, r) => write!(f, "(== {l} {r})"),
             Expression::NotEqualTo(l, r) => write!(f, "(!= {l} {r})"),
 
-            Expression::UnaryNegation(e) => write!(f, "(- {e})"),
+            Expression::UnaryNumericNegation(e) => write!(f, "(- {e})"),
+            Expression::UnaryBooleanNegation(e) => write!(f, "(! {e})"),
             Expression::UnaryAddition(e) => write!(f, "(+ {e})"),
 
             Expression::Ternary(p, l, r) => write!(f, "(? {p} {l} : {r})"),

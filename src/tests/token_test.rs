@@ -87,9 +87,9 @@ mod tests {
 
     #[test]
     fn test_tokenize_bad() {
-        let input = "20/5 * 10 + % - 2*(-4)";
+        let input = "20/5 * 10 + | - 2*(-4)";
         let expected_index_error = 12;
-        let expected_char_error = '%';
+        let expected_char_error = '|';
 
         match tokenize(input) {
             Ok(_) => panic!("Tokenize should've failed"),

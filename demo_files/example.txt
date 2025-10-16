@@ -21,6 +21,8 @@ if x > 5 {
 
 print 24 * 3 / 2 <= 4 ? 0 : 500
 
+# whitespace only acts as a separtor of tokens, not a delimiter for the end of an expression
+# multi-token operators i.e. '<=' can split into '< =' and still work
 print 24 
 *
 3 

@@ -4,7 +4,7 @@
 // Should tolerate invalid tokens i.e. Space tokens if they make their way through the tokenizer
 // More fault tolerance + should return Result type
 
-use crate::function::{Function,Argument};
+use crate::function::{Argument, Function};
 use crate::interpreter::statement::Statement;
 use crate::{
     parser::ast::{Expression, LiteralKind},
@@ -40,11 +40,19 @@ impl<'a> Parser<'a> {
     }
 
     pub fn peek(&self) -> Token {
-        if self.index == self.tokens.len() {
+        if self.index >= self.tokens.len() {
             return Token::EOF;
         }
 
         self.tokens[self.index].clone()
+    }
+
+    pub fn peek_ahead(&self) -> Token {
+        if self.index + 1 >= self.tokens.len() {
+            return Token::EOF;
+        }
+
+        self.tokens[self.index+1].clone()
     }
 
     pub fn tokens_remaining(&self) -> usize {
@@ -126,13 +134,15 @@ fn grouping_expr_handler(p: &mut Parser) -> Result<Box<Expression>, ParserError>
     Ok(Box::new(Expression::Grouping(expr)))
 }
 
-fn typecast_expr_handler(expr: Box<Expression>, p: &mut Parser) -> Result<Box<Expression>, ParserError> {
-
+fn typecast_expr_handler(
+    expr: Box<Expression>,
+    p: &mut Parser,
+) -> Result<Box<Expression>, ParserError> {
     let cast_type = match p.peek() {
         Token::Int => LiteralKind::default_integer(),
         Token::Real => LiteralKind::default_real(),
         Token::Bool => LiteralKind::default_boolean(),
-        _ => return Err(ParserError::ExpectedType(p.index()))
+        _ => return Err(ParserError::ExpectedType(p.index())),
     };
 
     p.consume();
@@ -145,11 +155,11 @@ fn args_expr_handler(p: &mut Parser) -> Result<Vec<Box<Expression>>, ParserError
     expect(Token::ParenL, p)?;
 
     while p.peek() != Token::ParenR && p.peek() != Token::EOF {
-        v.push(
-            parse_expr(p, 0)?
-        );
+        v.push(parse_expr(p, 0)?);
 
-        if p.peek() == Token::Comma { p.consume() }
+        if p.peek() == Token::Comma {
+            p.consume()
+        }
     }
     expect(Token::ParenR, p)?;
 
@@ -170,7 +180,11 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
             _ => Ok(Box::new(Expression::Reference(x))),
         },
 
-        Token::Minus => Ok(Box::new(Expression::UnaryNegation(parse_expr(
+        Token::Minus => Ok(Box::new(Expression::UnaryNumericNegation(parse_expr(
+            p,
+            token.precedence(),
+        )?))),
+        Token::Bang => Ok(Box::new(Expression::UnaryBooleanNegation(parse_expr(
             p,
             token.precedence(),
         )?))),
@@ -204,6 +218,10 @@ fn tail_handler(
             parse_expr(p, token.precedence())?,
         ))),
         Token::Slash => Ok(Box::new(Expression::BinaryDivision(
+            expr,
+            parse_expr(p, token.precedence())?,
+        ))),
+        Token::Percent => Ok(Box::new(Expression::BinaryModulo(
             expr,
             parse_expr(p, token.precedence())?,
         ))),
@@ -285,7 +303,7 @@ fn tail_handler(
     }
 }
 
-//fn ternary_handler(predicate: Box<Expression>, p: &mut Parser) 
+//fn ternary_handler(predicate: Box<Expression>, p: &mut Parser)
 //-> Result<Box<Expression>, ParserError> {
 //    expect(Token::Question, p)?;
 //
@@ -309,7 +327,6 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
 }
 
 fn function_handler(p: &mut Parser) -> Result<Function, ParserError> {
-
     expect(Token::Fn, p)?;
 
     expect(Token::ParenL, p)?;
@@ -319,21 +336,21 @@ fn function_handler(p: &mut Parser) -> Result<Function, ParserError> {
     while p.peek() != Token::ParenR && p.peek() != Token::EOF {
         let name = match p.next() {
             Token::Identifier(x) => x,
-            _ => return Err(ParserError::ExpectedIdentifier(p.index()))
+            _ => return Err(ParserError::ExpectedIdentifier(p.index())),
         };
 
         let kind = match p.next() {
-            Token::Int  => LiteralKind::default_integer(),
+            Token::Int => LiteralKind::default_integer(),
             Token::Real => LiteralKind::default_real(),
             Token::Bool => LiteralKind::default_boolean(),
-            _ => return Err(ParserError::ExpectedType(p.index()))
+            _ => return Err(ParserError::ExpectedType(p.index())),
         };
 
-        args.push(
-            Argument::new(name, kind)
-        );
+        args.push(Argument::new(name, kind));
 
-        if p.peek() == Token::Comma { p.consume() }
+        if p.peek() == Token::Comma {
+            p.consume()
+        }
     }
     expect(Token::ParenR, p)?;
 
@@ -344,10 +361,10 @@ fn function_handler(p: &mut Parser) -> Result<Function, ParserError> {
 
     let func = Function {
         parameters: args,
-        body: expr, 
+        body: expr,
     };
 
-    return Ok(func)
+    return Ok(func);
 }
 
 fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
@@ -361,13 +378,35 @@ fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> 
     expect(Token::Equal, p)?;
 
     match p.peek() {
-        Token::Fn => Ok(Box::new(Statement::FunctionAssignment(id, function_handler(p)?.into()))),
-        _ => Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?)))
+        Token::Fn => Ok(Box::new(Statement::FunctionAssignment(
+            id,
+            function_handler(p)?.into(),
+        ))),
+        _ => Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?))),
     }
-
 }
 
-fn print_statement_handler(p: &mut Parser, expect_print: bool) -> Result<Box<Statement>, ParserError> {
+fn reassign_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+    let id = match p.next() {
+        Token::Identifier(str) => str,
+        _ => return Err(ParserError::ExpectedIdentifier(p.index() - 1)),
+    };
+
+    expect(Token::Equal, p)?;
+
+    match p.peek() {
+        Token::Fn => Ok(Box::new(Statement::FunctionReassignment(
+            id,
+            function_handler(p)?.into(),
+        ))),
+        _ => Ok(Box::new(Statement::Reassignment(id, parse_expr(p, 0)?))),
+    }
+}
+
+fn print_statement_handler(
+    p: &mut Parser,
+    expect_print: bool,
+) -> Result<Box<Statement>, ParserError> {
     if expect_print {
         expect(Token::Print, p)?;
     }
@@ -396,7 +435,7 @@ fn if_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement
 
     let statement = match p.peek() {
         Token::CurlyL => block_statement_handler(p, repl_mode)?,
-        _             => parse_statement(p, repl_mode)?,
+        _ => parse_statement(p, repl_mode)?,
     };
 
     if p.peek() == Token::Else {
@@ -412,6 +451,16 @@ fn if_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement
     }
 }
 
+fn while_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>, ParserError> {
+    expect(Token::While, p)?;
+
+    let cond = parse_expression(p)?;
+
+    let stm = parse_statement(p, repl_mode)?;
+
+    Ok(Box::new(Statement::While(cond, stm)))
+}
+
 pub fn parse_expression(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     parse_expr(p, 0)
 }
@@ -422,9 +471,16 @@ pub fn parse_statement(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>
 
     let stm = match p.peek() {
         Token::Let => let_statement_handler(p),
+        Token::Identifier { .. } => {
+            match p.peek_ahead() {
+                Token::Equal => reassign_statement_handler(p),
+                _ => print_statement_handler(p, should_expect_print_token),
+            }
+        }
         Token::Print => print_statement_handler(p, true),
         Token::If => if_statement_handler(p, repl_mode),
         Token::CurlyL => block_statement_handler(p, repl_mode),
+        Token::While => while_statement_handler(p, repl_mode),
         // For maintaing backwards compat -- should Err in future
         _ => {
             if repl_mode {

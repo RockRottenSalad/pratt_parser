@@ -9,7 +9,7 @@ mod ast_tests {
         // -(20+5*2) / 2 + 9
         let ast = Expression::BinaryAddition(
             Box::new(Expression::BinaryDivision(
-                Box::new(Expression::UnaryNegation(Box::new(Expression::Grouping(
+                Box::new(Expression::UnaryNumericNegation(Box::new(Expression::Grouping(
                     Box::new(Expression::BinaryAddition(
                         Box::new(Expression::Literal(LiteralKind::Integer(20))),
                         Box::new(Expression::BinaryMultiplication(

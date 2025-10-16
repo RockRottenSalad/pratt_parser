@@ -38,6 +38,7 @@ pub enum Token {
     Minus,
     Star,
     Slash,
+    Percent,
 
     ParenR,
     ParenL,
@@ -69,6 +70,8 @@ pub enum Token {
     Fn,
     Comma,
 
+    While,
+
     Question,
     Colon,
 }
@@ -88,6 +91,7 @@ fn token_from_identifier(identifier: &str) -> Option<Token> {
         "and"   => Some(Token::And),
         "or"    => Some(Token::Or),
         "fn"    => Some(Token::Fn),
+        "while" => Some(Token::While),
         _       => None
     }
 }
@@ -115,6 +119,7 @@ impl Token {
 
             Token::Star => 4,
             Token::Slash => 4,
+            Token::Percent => 4,
 
             Token::As => 6,
 
@@ -138,6 +143,7 @@ impl fmt::Display for Token {
             Token::Plus => write!(f, "Plus(+)"),
             Token::Minus => write!(f, "Minus(-)"),
             Token::Star => write!(f, "Star(*)"),
+            Token::Percent => write!(f, "Percent(%)"),
             Token::Slash => write!(f, "Slash(/)"),
             Token::ParenR => write!(f, "ParenR())"),
             Token::ParenL => write!(f, "Slash(()"),
@@ -165,6 +171,7 @@ impl fmt::Display for Token {
             Token::Bool => write!(f, "Type(Bool)"),
             Token::Fn => write!(f, "Fn"),
             Token::Comma => write!(f, "Comma(,)"),
+            Token::While => write!(f, "While"),
         }
     }
 }
@@ -174,6 +181,7 @@ pub fn char_to_token(ch: char) -> Result<Token, TokenizerError> {
         '+' => Ok(Token::Plus),
         '-' => Ok(Token::Minus),
         '*' => Ok(Token::Star),
+        '%' => Ok(Token::Percent),
         '/' => Ok(Token::Slash),
         '(' => Ok(Token::ParenL),
         ')' => Ok(Token::ParenR),

@@ -7,9 +7,10 @@ The plan is to turn this into a simple interpreted (maybe functional) language.
 
 ## Using the program
 
-In not-so-good repl mode. There is no support for arrow keys. Exit with Ctrl-C.
-You do not have to type 'print' whilst in REPL mode, simply running the
-expression will implicity print it.
+In not-so-good repl mode. There is no support for arrow keys and it expects the
+entire program to be written on one line(i.e. line breaks after '{' are not
+allowed). Exit with Ctrl-C. You do not have to type 'print' whilst in REPL
+mode, simply running the expression will implicity print it.
 ```
 cargo run -- cli
 ```
@@ -33,9 +34,6 @@ The current implementation is somewhat hacky and relies on the use of the
 "unsafe" keyword in five places. Once that is fixed, adding support for statements
 in the body of a function will be the next goal.
 
-The '!' negation operator does not exist yet, use '-' for negating
-booleans.
-
 ## The supported language thus far
 
 The following syntax indicates that the production rule must follow a certain path.
@@ -43,26 +41,29 @@ The following syntax indicates that the production rule must follow a certain pa
 (Prod -> Result) 'type specific operator' (Prod -> Result)
 ```
 
-Variables must have values. The 'let' keyword must be used everytime, even when
-changing pre-existing variable, the old value is simply overriden.
-
 ```
 Statement -> Statement*
 Statement -> PrintStatement
 Statement -> DeclareVarStatement
 Statement -> DeclareFuncStatement
+Statement -> ReassignVarStatement
+Statement -> ReassignFuncStatement
 Statement -> IfStatement
 Statement -> BlockStatement
+Statement -> WhileLoopStatement
 
 PrintStatement -> 'print' Expr
-DeclareVarStatement -> 'let' Identifier '=' Expr 
-DeclareFuncStatement -> 'let' Identifier '=' 'fn' '(' (Identifier Type(,)?)* ')' '->' Expr
+DeclareVarStatement -> 'let' ReassignVarStatement
+DeclareFuncStatement -> 'let' ReassignFuncStatement
+ReassignVarStatement -> Identifier '=' Expr 
+ReassignFuncStatement -> Identifier '=' 'fn' '(' (Identifier Type(,)?)* ')' '->' Expr
 IfStatement -> 'if' Expr Statement ('else' Statement)?
 BlockStatement -> '{' Statement '}'
+WhileLoopStatement -> 'while' (Expr -> Boolean) Statement
 
 Identifier -> ['a'-'z'|'A'-'Z']+
 
-Expr -> Expr ['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>='] Expr
+Expr -> Expr ['+'|'-'|'*'|'/'|'=='|'!='|'<'|'>'|'<='|'>='|'%'] Expr
 Expr -> Expr 'as' Type
 Expr -> (Expr -> Boolean) ['and'|'or'] (Expr -> Boolean)
 Expr -> Literal
@@ -72,7 +73,7 @@ Expr -> '(' Expr ')'
 Literal -> Boolean
 Literal -> Number
 
-Boolean -> ['true'|'false']
+Boolean -> ['!']*['true'|'false']
 
 Number -> Integer
 Number -> Real

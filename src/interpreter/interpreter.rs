@@ -53,8 +53,8 @@ impl State {
         }
     }
 
-    pub fn env(&mut self) -> *const Environment {
-        &*self.env
+    pub fn env(&mut self) -> *mut Environment {
+        &mut *self.env
     }
 
     pub fn borrow_env(&mut self) -> &mut Environment {
@@ -88,7 +88,7 @@ impl State {
 pub struct Environment {
     state: HashMap<Rc<str>, LiteralKind>,
     functions: HashMap<Rc<str>, Rc<Function>>,
-    parent: Option<Either<Box<Environment>, *const Environment>>,
+    parent: Option<Either<Box<Environment>, *mut Environment>>,
 }
 
 impl Environment {
@@ -103,7 +103,7 @@ impl Environment {
         })
     }
 
-    pub fn new_non_owning(parent: *const Environment) -> Box<Self> {
+    pub fn new_non_owning(parent: *mut Environment) -> Box<Self> {
         Box::new(Environment {
             state: HashMap::with_capacity(10),
             functions: HashMap::with_capacity(10),
@@ -146,6 +146,21 @@ impl Environment {
         self.state.insert(name.into(), value);
     }
 
+    pub fn reassign_variable(&mut self, name: &str, value: LiteralKind) -> bool {
+        if self.state.contains_key(name) {
+            self.state.insert(name.into(), value);
+            return true;
+        }
+
+        match &mut self.parent {
+            None => { return false; },
+            Some(env) => match env {
+                Either::Left(x) => x.reassign_variable(name, value),
+                Either::Right(x) => unsafe { (**x).reassign_variable(name, value) },
+            }
+        }
+    }
+
     pub fn get_variable(&self, name: &str) -> Option<LiteralKind> {
         match self.state.get(name) {
             Some(v) => Some(v.clone()),
@@ -178,6 +193,21 @@ impl Environment {
 
     pub fn declare_function(&mut self, name: &str, f: Rc<Function>) {
         self.functions.insert(name.into(), f);
+    }
+
+    pub fn reassign_function(&mut self, name: &str, f: Rc<Function>) -> bool {
+        if self.functions.contains_key(name) {
+            self.functions.insert(name.into(), f);
+            return true;
+        }
+
+        match &mut self.parent {
+            None => { return false; },
+            Some(env) => match env {
+                Either::Left(x) => x.reassign_function(name, f),
+                Either::Right(x) => unsafe { (**x).reassign_function(name, f) },
+            }
+        }
     }
 
 }

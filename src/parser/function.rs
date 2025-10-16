@@ -45,7 +45,7 @@ impl Function {
             let value = v?;
 
             if !value.is_same_type(&self.parameters[i].kind) {
-                panic!("WIP - Function argument and parameter type mismatch. Expected {}, got {} at arg {}", self.parameters[i].kind, args[i], i)
+                return Err(AstError::IncorrectArgumentType(self.parameters[i].kind, value, i))
             }
 
             local_env.declare_variable(&self.parameters[i].name, value)

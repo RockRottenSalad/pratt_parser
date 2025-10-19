@@ -32,7 +32,7 @@ mod tests {
 
         match *stm {
             Statement::FunctionAssignment(name, func) => 
-            state.borrow_env().declare_function(&name, func),
+            state.borrow_env_mut().declare_function(&name, func),
             _ => panic!("Expected, function assignment statement")
         }
 
@@ -42,7 +42,7 @@ mod tests {
 
             let expr = Expression::FunctionCall("doubleIT".into(), vec![Box::new(Expression::Literal(literal))]);
 
-            let res = expr.evaluate(Some(state.env()));
+            let res = expr.evaluate(Some(&mut state));
 
             match res {
                 Ok(v) => assert_eq!(v, expected),

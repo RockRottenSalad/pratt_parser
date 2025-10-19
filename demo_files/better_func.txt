@@ -1,0 +1,38 @@
+
+let a = 10
+
+let isEven = fn (x int) -> {
+    return x % 2 == 0
+}
+
+# Func return type currently is currently dynamic
+# This needs to be fixed
+let bs = fn (x int) -> {
+    if isEven(x) {
+        return 3.14
+    } else {
+        return false
+    }
+}
+
+let scope = fn () -> {
+    let b = 10
+    let c = b + a
+
+    print a
+    print b
+    print c
+}
+
+print 100
+print isEven(10)
+print isEven(3)
+
+print 200
+print bs(2)
+print bs(7)
+
+
+print 300
+scope()
+

@@ -2,18 +2,23 @@
 let a = 10
 
 let doubleIt = fn (x int) -> x * 2
+
+# 30
 print doubleIt(15)
 
 let add = fn (x int y int) -> x + y
 
+# 16 16
 # comma between arguments is optional
 print add(7 9)
 print add(7, 9)
 
+# 25
 # Nested function calls are supported
 print add(doubleIt(10) 5)
 
 let scopeAccess = fn (x int) -> a + x
 
+# 11
 print scopeAccess(1)
 

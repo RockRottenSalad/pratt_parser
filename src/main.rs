@@ -32,7 +32,7 @@ fn main() {
             if buffer.trim() == "" { continue }
 
             match interpret_repl_mode(&buffer, &mut state) {
-                Ok(()) => {},
+                Ok(v) => println!("{v}"),
                 Err(e) => {println!("{e}");},
             }
         }

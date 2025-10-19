@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::Environment;
+use crate::State;
 use std::fmt;
 use std::rc::Rc;
 use std::result::Result;
@@ -287,85 +287,85 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn evaluate(&self, env: Option<*mut Environment>) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, state: Option<*mut State>) -> Result<LiteralKind, AstError> {
         match self {
             Expression::Literal(w) => Ok(w.clone()),
-            Expression::Grouping(expr) => expr.evaluate(env),
+            Expression::Grouping(expr) => expr.evaluate(state),
             Expression::BinaryAddition(left, right) => {
-                numeric_reduce!(+, left.evaluate(env)?, right.evaluate(env)?)
+                numeric_reduce!(+, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::BinarySubtraction(left, right) => {
-                numeric_reduce!(-, left.evaluate(env)?, right.evaluate(env)?)
+                numeric_reduce!(-, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::BinaryMultiplication(left, right) => {
-                numeric_reduce!(*, left.evaluate(env)?, right.evaluate(env)?)
+                numeric_reduce!(*, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::BinaryDivision(left, right) => {
-                let right = right.evaluate(env)?;
+                let right = right.evaluate(state)?;
                 if right.is_zero() {
                     return Err(AstError::DivisionByZero);
                 }
-                return numeric_reduce!(/, left.evaluate(env)?, right);
+                return numeric_reduce!(/, left.evaluate(state)?, right);
             }
             Expression::BinaryModulo(left, right) => {
-                numeric_reduce!(%, left.evaluate(env)?, right.evaluate(env)? )
+                numeric_reduce!(%, left.evaluate(state)?, right.evaluate(state)? )
             }
             Expression::GreaterThan(left, right) => {
-                cmp_reduce!(>, left.evaluate(env)?, right.evaluate(env)?)
+                cmp_reduce!(>, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::GreaterEqualThan(left, right) => {
-                cmp_reduce!(>=, left.evaluate(env)?, right.evaluate(env)?)
+                cmp_reduce!(>=, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::LessThan(left, right) => {
-                cmp_reduce!(<, left.evaluate(env)?, right.evaluate(env)?)
+                cmp_reduce!(<, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::LessEqualThan(left, right) => {
-                cmp_reduce!(<=, left.evaluate(env)?, right.evaluate(env)?)
+                cmp_reduce!(<=, left.evaluate(state)?, right.evaluate(state)?)
             }
 
             Expression::EqualTo(left, right) => {
-                cmp_reduce!(==, left.evaluate(env)?, right.evaluate(env)?)
+                cmp_reduce!(==, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::NotEqualTo(left, right) => {
-                cmp_reduce!(!=, left.evaluate(env)?, right.evaluate(env)?)
+                cmp_reduce!(!=, left.evaluate(state)?, right.evaluate(state)?)
             }
 
             Expression::And(left, right) => {
-                boolean_reduce!(&&, left.evaluate(env)?, right.evaluate(env)?)
+                boolean_reduce!(&&, left.evaluate(state)?, right.evaluate(state)?)
             }
             Expression::Or(left, right) => {
-                boolean_reduce!(||, left.evaluate(env)?, right.evaluate(env)?)
+                boolean_reduce!(||, left.evaluate(state)?, right.evaluate(state)?)
             }
 
-            Expression::UnaryNumericNegation(expr) => Ok(match expr.evaluate(env)? {
+            Expression::UnaryNumericNegation(expr) => Ok(match expr.evaluate(state)? {
                 LiteralKind::Integer(x) => LiteralKind::Integer(-x),
                 LiteralKind::Real(x) => LiteralKind::Real(-x),
                 _ => {return Err(AstError::CannotImplicitityCastBoolToNumeric)}
             }),
-            Expression::UnaryBooleanNegation(expr) => Ok(match expr.evaluate(env)? {
+            Expression::UnaryBooleanNegation(expr) => Ok(match expr.evaluate(state)? {
                 LiteralKind::Boolean(x) => LiteralKind::Boolean(!x),
                 _ => {return Err(AstError::CannotImplicitityCastNumericToBool)}
             }),
-            Expression::UnaryAddition(expr) => Ok(expr.evaluate(env)?),
+            Expression::UnaryAddition(expr) => Ok(expr.evaluate(state)?),
 
             Expression::Ternary(predicate, left, right) => {
-                let predicate = predicate.evaluate(env)?;
+                let predicate = predicate.evaluate(state)?;
                 if !predicate.is_boolean() {
                     return Err(AstError::CannotImplicitityCastNumericToBool);
                 }
 
                 if predicate.is_true() {
-                    Ok(left.evaluate(env)?)
+                    Ok(left.evaluate(state)?)
                 } else {
-                    Ok(right.evaluate(env)?)
+                    Ok(right.evaluate(state)?)
                 }
             }
 
-            Expression::Typecast(expr, kind) => Ok(expr.evaluate(env)?.typecast(kind)),
+            Expression::Typecast(expr, kind) => Ok(expr.evaluate(state)?.typecast(kind)),
 
-            Expression::Reference(var) => match env {
-                Some(env) => unsafe {
-                    match (*env).get_variable(var) {
+            Expression::Reference(var) => match state {
+                Some(state) => unsafe {
+                    match (*state).borrow_env().get_variable(var) {
                         Some(v) => Ok(v),
                         None => Err(AstError::UnresolvedReference(Rc::clone(var))),
                     }
@@ -373,10 +373,14 @@ impl Expression {
                 None => Err(AstError::UnresolvedReference(Rc::clone(var))),
             },
 
-            Expression::FunctionCall(f_name, xs) => match env {
-                Some(env) => unsafe {
-                    match (*env).get_function(f_name) {
-                        Some(f) => f.evaluate(xs, env),
+            Expression::FunctionCall(f_name, xs) => match state {
+                Some(state) => unsafe {
+                    match (*state).borrow_env().get_function(f_name) {
+                        // TODO fix possible panic
+                        Some(f) => match f.evaluate(xs, state) {
+                            Ok(v) => Ok(v),
+                            Err(_) => Err(AstError::UnresolvedReference(Rc::clone(f_name)))
+                        }
                         None => Err(AstError::UnresolvedReference(Rc::clone(f_name))),
                     }
                 },

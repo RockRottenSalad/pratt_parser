@@ -68,6 +68,7 @@ pub enum Token {
     Bool,
 
     Fn,
+    Return,
     Comma,
 
     While,
@@ -78,21 +79,22 @@ pub enum Token {
 
 fn token_from_identifier(identifier: &str) -> Option<Token> {
     match identifier {
-        "true"  => Some(Token::LiteralBoolean(true)),
-        "false" => Some(Token::LiteralBoolean(false)),
-        "if"    => Some(Token::If),
-        "else"  => Some(Token::Else),
-        "let"   => Some(Token::Let),
-        "print" => Some(Token::Print),
-        "as"    => Some(Token::As),
-        "int"   => Some(Token::Int),
-        "real"  => Some(Token::Real),
-        "bool"  => Some(Token::Bool),
-        "and"   => Some(Token::And),
-        "or"    => Some(Token::Or),
-        "fn"    => Some(Token::Fn),
-        "while" => Some(Token::While),
-        _       => None
+        "true"   => Some(Token::LiteralBoolean(true)),
+        "false"  => Some(Token::LiteralBoolean(false)),
+        "if"     => Some(Token::If),
+        "else"   => Some(Token::Else),
+        "let"    => Some(Token::Let),
+        "print"  => Some(Token::Print),
+        "as"     => Some(Token::As),
+        "int"    => Some(Token::Int),
+        "real"   => Some(Token::Real),
+        "bool"   => Some(Token::Bool),
+        "and"    => Some(Token::And),
+        "or"     => Some(Token::Or),
+        "fn"     => Some(Token::Fn),
+        "while"  => Some(Token::While),
+        "return" => Some(Token::Return),
+        _        => None
     }
 }
 
@@ -172,6 +174,7 @@ impl fmt::Display for Token {
             Token::Fn => write!(f, "Fn"),
             Token::Comma => write!(f, "Comma(,)"),
             Token::While => write!(f, "While"),
+            Token::Return => write!(f, "Return"),
         }
     }
 }

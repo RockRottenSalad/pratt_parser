@@ -2,7 +2,9 @@
 
 // Maybe move this to ast.rs?
 
-use crate::Environment;
+use crate::InterpreterError;
+use crate::interpreter::statement::Statement;
+use crate::State;
 use crate::ast::{Expression, LiteralKind, AstError};
 use std::rc::Rc;
 use std::fmt;
@@ -28,30 +30,47 @@ impl fmt::Display for Argument {
 #[derive(Debug)]
 pub struct Function {
     pub parameters: Vec<Argument>,
-    pub body: Box<Expression>, // TODO - should allow block statement in the future
+    pub body: Box<Statement>, // TODO - should allow block statement in the future
 }
 
 impl Function {
 
-    pub fn evaluate(&self, args: &Vec<Box<Expression>>, env: *mut Environment) -> Result<LiteralKind, AstError> {
+    pub fn evaluate(&self, args: &Vec<Box<Expression>>, state: *mut State) -> Result<LiteralKind, InterpreterError> {
 
         if args.len() != self.parameters.len() {
-            return Err(AstError::IncorrectNumberOfArguments(self.parameters.len(), args.len()))
+            return Err(
+                InterpreterError::Ast(
+                AstError::IncorrectNumberOfArguments(self.parameters.len(), args.len())
+            ))
         }
 
-        let mut local_env = Environment::new_non_owning(env);
+        unsafe { (*state).enter_scope() };
 
-        for (i, v) in args.iter().map(|x| x.evaluate(Some(env))).enumerate() {
-            let value = v?;
+        for (i, v) in args.iter().map(|x| x.evaluate(Some(state))).enumerate() {
+            let value = match v {
+                Ok(v) => v,
+                Err(e) => return Err(InterpreterError::Ast(e))
+            };
 
             if !value.is_same_type(&self.parameters[i].kind) {
-                return Err(AstError::IncorrectArgumentType(self.parameters[i].kind, value, i))
+                unsafe { (*state).leave_scope()? };
+
+                return Err(
+                    InterpreterError::Ast(
+                    AstError::IncorrectArgumentType(self.parameters[i].kind, value, i)
+                ))
             }
 
-            local_env.declare_variable(&self.parameters[i].name, value)
+            unsafe {
+                (*state).borrow_env_mut().declare_variable(&self.parameters[i].name, value);
+            }
         }
 
-        self.body.evaluate(Some(&mut *local_env))
+        let ret = self.body.execute(state);
+
+        unsafe { (*state).leave_scope()? };
+
+        ret
     }
 }
 

@@ -326,7 +326,7 @@ fn parse_expr(p: &mut Parser, expr_precedence: u8) -> Result<Box<Expression>, Pa
     Ok(left_expr)
 }
 
-fn function_handler(p: &mut Parser) -> Result<Function, ParserError> {
+fn function_handler(p: &mut Parser, repl_mode: bool) -> Result<Function, ParserError> {
     expect(Token::Fn, p)?;
 
     expect(Token::ParenL, p)?;
@@ -357,17 +357,17 @@ fn function_handler(p: &mut Parser) -> Result<Function, ParserError> {
     expect(Token::Minus, p)?;
     expect(Token::GreaterThan, p)?;
 
-    let expr = parse_expr(p, 0)?;
+    let stm = parse_statement(p, repl_mode)?;
 
     let func = Function {
         parameters: args,
-        body: expr,
+        body: stm,
     };
 
     return Ok(func);
 }
 
-fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+fn let_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>, ParserError> {
     expect(Token::Let, p)?;
 
     let id = match p.next() {
@@ -380,13 +380,13 @@ fn let_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> 
     match p.peek() {
         Token::Fn => Ok(Box::new(Statement::FunctionAssignment(
             id,
-            function_handler(p)?.into(),
+            function_handler(p, repl_mode)?.into(),
         ))),
         _ => Ok(Box::new(Statement::Assignment(id, parse_expr(p, 0)?))),
     }
 }
 
-fn reassign_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserError> {
+fn reassign_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>, ParserError> {
     let id = match p.next() {
         Token::Identifier(str) => str,
         _ => return Err(ParserError::ExpectedIdentifier(p.index() - 1)),
@@ -397,7 +397,7 @@ fn reassign_statement_handler(p: &mut Parser) -> Result<Box<Statement>, ParserEr
     match p.peek() {
         Token::Fn => Ok(Box::new(Statement::FunctionReassignment(
             id,
-            function_handler(p)?.into(),
+            function_handler(p, repl_mode)?.into(),
         ))),
         _ => Ok(Box::new(Statement::Reassignment(id, parse_expr(p, 0)?))),
     }
@@ -461,37 +461,49 @@ fn while_statement_handler(p: &mut Parser, repl_mode: bool) -> Result<Box<Statem
     Ok(Box::new(Statement::While(cond, stm)))
 }
 
+fn return_statement_handler(p: &mut Parser, expect_return: bool) -> Result<Box<Statement>, ParserError> {
+    if expect_return {
+        expect(Token::Return, p)?;
+    }
+
+    let expr = parse_expression(p)?;
+
+    Ok(Box::new(Statement::Return(expr)))
+}
+
 pub fn parse_expression(p: &mut Parser) -> Result<Box<Expression>, ParserError> {
     parse_expr(p, 0)
 }
 
 pub fn parse_statement(p: &mut Parser, repl_mode: bool) -> Result<Box<Statement>, ParserError> {
     // When in REPL mode, specifying 'print' token not required
-    let should_expect_print_token = !repl_mode;
+    //let should_expect_print_token = !repl_mode;
 
     let stm = match p.peek() {
-        Token::Let => let_statement_handler(p),
+        Token::Let => let_statement_handler(p, repl_mode),
         Token::Identifier { .. } => {
             match p.peek_ahead() {
-                Token::Equal => reassign_statement_handler(p),
-                _ => print_statement_handler(p, should_expect_print_token),
+                Token::Equal => reassign_statement_handler(p, repl_mode),
+                _ => return_statement_handler(p, false),
             }
         }
         Token::Print => print_statement_handler(p, true),
         Token::If => if_statement_handler(p, repl_mode),
         Token::CurlyL => block_statement_handler(p, repl_mode),
         Token::While => while_statement_handler(p, repl_mode),
+        Token::Return => return_statement_handler(p, true),
         // For maintaing backwards compat -- should Err in future
-        _ => {
-            if repl_mode {
-                print_statement_handler(p, should_expect_print_token)
-            } else {
-                let index = p.index();
-                // Consume expected expr to prevent further errors
-                let _ = parse_expr(p, 0);
-                Err(ParserError::ExpectedStatement(index))
-            }
-        }
+        _             => return_statement_handler(p, false)
+//            {
+//            if repl_mode {
+//                print_statement_handler(p, should_expect_print_token)
+//            } else {
+//                let index = p.index();
+//                // Consume expected expr to prevent further errors
+//                let _ = parse_expr(p, 0);
+//                Err(ParserError::ExpectedStatement(index))
+//            }
+//        }
     };
 
     // If this statement failed, then we want to consume the rest of the statement, so that this

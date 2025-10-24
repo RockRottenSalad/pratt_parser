@@ -36,3 +36,13 @@ print bs(7)
 print 300
 scope()
 
+print 400
+let idk = fn () -> {
+    let x = 10
+    x
+    print x * 2
+}
+
+let result = idk()
+print result
+

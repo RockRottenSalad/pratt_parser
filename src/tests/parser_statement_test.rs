@@ -103,7 +103,10 @@ mod tests {
 
             let repl_mode = false;
             match parse_statement(&mut parser, repl_mode) {
-                Ok(s) => panic!("Expected parser to fail, got: {s}"),
+                Ok(s) => match *s {
+                    Statement::Assignment {..} => panic!("Assignment statement should've failed"),
+                    _ => {}
+                },
                 Err(..) => {} // TODO check that error makes sense
             }
         }

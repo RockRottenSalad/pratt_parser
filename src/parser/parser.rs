@@ -174,6 +174,7 @@ fn head_handler(token: Token, p: &mut Parser) -> Result<Box<Expression>, ParserE
         Token::LiteralInteger(x) => Ok(Box::new(Expression::Literal(LiteralKind::Integer(x)))),
         Token::LiteralReal(x) => Ok(Box::new(Expression::Literal(LiteralKind::Real(x)))),
         Token::LiteralBoolean(x) => Ok(Box::new(Expression::Literal(LiteralKind::Boolean(x)))),
+        Token::LiteralChar(x) => Ok(Box::new(Expression::Literal(LiteralKind::Char(x)))),
 
         Token::Identifier(x) => match p.peek() {
             Token::ParenL => Ok(Box::new(Expression::FunctionCall(x, args_expr_handler(p)?))),
@@ -205,6 +206,9 @@ fn tail_handler(
     match token {
         Token::LiteralInteger(_) => Err(ParserError::ExpectedOperator(p.index())),
         Token::LiteralReal(_) => Err(ParserError::ExpectedOperator(p.index())),
+        Token::LiteralBoolean(_) => Err(ParserError::ExpectedOperator(p.index())),
+        Token::LiteralChar(_) => Err(ParserError::ExpectedOperator(p.index())),
+
         Token::Plus => Ok(Box::new(Expression::BinaryAddition(
             expr,
             parse_expr(p, token.precedence())?,

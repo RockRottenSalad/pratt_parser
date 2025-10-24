@@ -11,6 +11,8 @@ pub enum AstError {
     IllegalUnaryOperator,
     CannotImplicitityCastBoolToNumeric,
     CannotImplicitityCastNumericToBool,
+    CannotImplicitityCastChar,
+    OperatorNotSupportedWithArray, // todo - include op in err
     UnresolvedReference(Rc<str>),
     IncorrectNumberOfArguments(usize, usize),
     IncorrectArgumentType(LiteralKind, LiteralKind, usize),
@@ -36,15 +38,25 @@ impl fmt::Display for AstError {
                 f,
                 "Incorrect argument type. Expected '{e}', got '{g}' at argument '{i}"
             ),
+            AstError::CannotImplicitityCastChar => write!(
+                f,
+                "Cannot implicity cast a char to another type"
+            ),
+            AstError::OperatorNotSupportedWithArray => write!(
+                f,
+                "Operator not supported with array"
+            )
         }
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum LiteralKind {
     Integer(i32),
     Real(f32),
     Boolean(bool),
+    Char(char),
+    Array(Vec<LiteralKind>),
     Void,
 }
 
@@ -54,6 +66,8 @@ impl LiteralKind {
             LiteralKind::Integer(x) => *x == 0,
             LiteralKind::Real(x) => *x == 0.0,
             LiteralKind::Boolean(x) => *x == false,
+            LiteralKind::Char(x) => *x == '\0',
+            LiteralKind::Array(x) => x.len() == 0,
             LiteralKind::Void => true,
         }
     }
@@ -61,9 +75,7 @@ impl LiteralKind {
     pub fn is_true(&self) -> bool {
         match self {
             LiteralKind::Boolean(x) => *x,
-            LiteralKind::Real(x) => *x > 0.0,
-            LiteralKind::Integer(x) => *x > 0,
-            LiteralKind::Void => false,
+            _ => false
         }
     }
 
@@ -71,6 +83,8 @@ impl LiteralKind {
         match self {
             LiteralKind::Boolean(_) => 0,
             LiteralKind::Integer(_) => 1,
+            LiteralKind::Array(_) => 1,
+            LiteralKind::Char(_) => 1,
             LiteralKind::Real(_) => 2,
             LiteralKind::Void => 3,
         }
@@ -94,6 +108,18 @@ impl LiteralKind {
             _ => false,
         }
     }
+    pub fn is_char(&self) -> bool {
+        match self {
+            LiteralKind::Char(_) => true,
+            _ => false,
+        }
+    }
+    pub fn is_array(&self) -> bool {
+        match self {
+            LiteralKind::Array(_) => true,
+            _ => false,
+        }
+    }
 
     pub fn default_integer() -> Self {
         LiteralKind::Integer(i32::default())
@@ -103,6 +129,12 @@ impl LiteralKind {
     }
     pub fn default_boolean() -> Self {
         LiteralKind::Boolean(bool::default())
+    }
+    pub fn default_char(&self) -> Self {
+        LiteralKind::Char(char::default())
+    }
+    pub fn default_array(&self) -> Self {
+        LiteralKind::Array(Vec::new())
     }
 
     pub fn typecast(&self, other: &Self) -> LiteralKind {
@@ -114,13 +146,26 @@ impl LiteralKind {
                 LiteralKind::Boolean(x) => LiteralKind::Integer(x as i32),
                 LiteralKind::Integer(x) => LiteralKind::Integer(x),
                 LiteralKind::Void => LiteralKind::Integer(0),
+                LiteralKind::Char(x) => LiteralKind::Integer(x as i32),
+                LiteralKind::Array(_) => panic!("TODO: Don't panic")
             },
             LiteralKind::Real(_) => match *self {
                 LiteralKind::Real(x) => LiteralKind::Real(x),
                 LiteralKind::Boolean(x) => LiteralKind::Real((x as i32) as f32),
+                LiteralKind::Char(x) => LiteralKind::Real((x as i32) as f32),
                 LiteralKind::Integer(x) => LiteralKind::Real(x as f32),
                 LiteralKind::Void => LiteralKind::Real(0.0),
+                LiteralKind::Array(_) => panic!("TODO: Don't panic")
             },
+            LiteralKind::Char(_) => match *self {
+                LiteralKind::Real(_) => LiteralKind::Void,
+                LiteralKind::Void => LiteralKind::Void,
+                LiteralKind::Boolean(_) => LiteralKind::Void,
+                LiteralKind::Char(x) => LiteralKind::Char(x),
+                LiteralKind::Integer(x) => LiteralKind::Char(char::from_u32(x as u32).unwrap()),
+                LiteralKind::Array(_) => panic!("TODO: Don't panic")
+            },
+            LiteralKind::Array(_) => panic!("TODO: Don't panic")
         }
     }
 
@@ -144,6 +189,11 @@ impl LiteralKind {
                 LiteralKind::Void => true,
                 _ => false,
             },
+            LiteralKind::Char(_) => match other {
+                LiteralKind::Char(_) => true,
+                _ => false
+            },
+            LiteralKind::Array(_) => false,
         }
     }
 
@@ -165,6 +215,14 @@ impl LiteralKind {
                 LiteralKind::Void => true,
                 _ => false,
             },
+            LiteralKind::Char(_) => match other {
+                LiteralKind::Char(_) => true,
+                _ => false,
+            },
+            LiteralKind::Array(_) => match other {
+                LiteralKind::Array(_) => true,
+                _ => false,
+            },
         }
     }
 
@@ -173,6 +231,8 @@ impl LiteralKind {
             LiteralKind::Boolean(_) => "Boolean",
             LiteralKind::Integer(_) => "Integer",
             LiteralKind::Real(_) => "Real",
+            LiteralKind::Char(_) => "Char",
+            LiteralKind::Array(_) => "Array",
             LiteralKind::Void => "Void",
         }
     }
@@ -184,6 +244,8 @@ impl fmt::Display for LiteralKind {
             LiteralKind::Boolean(x) => write!(f, "{x}"),
             LiteralKind::Real(x) => write!(f, "{x}"),
             LiteralKind::Integer(x) => write!(f, "{x}"),
+            LiteralKind::Char(x) => write!(f, "{x}"),
+            LiteralKind::Array(x) => write!(f, "{:?}", x),
             LiteralKind::Void => write!(f, "Void"),
         }
     }
@@ -197,16 +259,22 @@ macro_rules! numeric_reduce {
                 LiteralKind::Integer(y) => Ok(LiteralKind::Integer(x $op y)),
                 LiteralKind::Real(y) => Ok(LiteralKind::Real((x as f32) $op y)),
                 LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+                LiteralKind::Char(_) => Err(AstError::CannotImplicitityCastChar),
                 LiteralKind::Void => Ok(LiteralKind::Integer(x)),
+                LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray)
             },
             LiteralKind::Real(x) => match $other {
                 LiteralKind::Integer(y) => Ok(LiteralKind::Real(x $op (y as f32))),
                 LiteralKind::Real(y) => Ok(LiteralKind::Real(x $op y)),
                 LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
+                LiteralKind::Char(_) => Err(AstError::CannotImplicitityCastChar),
                 LiteralKind::Void => Ok(LiteralKind::Real(x)),
+                LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray)
             },
             LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
-            LiteralKind::Void => Ok($other)
+            LiteralKind::Void => Ok($other),
+            LiteralKind::Char(_) => panic!("Not implemented yet"),
+            LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray)
         }
     }
 }
@@ -216,18 +284,27 @@ macro_rules! cmp_reduce {
         match $self {
             LiteralKind::Integer(x) => match $other {
                 LiteralKind::Integer(y) => Ok(LiteralKind::Boolean(x $op y)),
+                LiteralKind::Char(y) => Ok(LiteralKind::Boolean(x $op (y as i32))),
                 LiteralKind::Real(y) => Ok(LiteralKind::Boolean((x as f32) $op y)),
                 LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
                 LiteralKind::Void => Ok(LiteralKind::Boolean(false)),
+                LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray)
             },
             LiteralKind::Real(x) => match $other {
                 LiteralKind::Integer(y) => Ok(LiteralKind::Boolean(x $op (y as f32))),
                 LiteralKind::Real(y) => Ok(LiteralKind::Boolean(x $op y)),
+                LiteralKind::Char(y) => Ok(LiteralKind::Boolean(x $op (y as i32) as f32)),
                 LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
                 LiteralKind::Void => Ok(LiteralKind::Boolean(false)),
+                LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray)
+            },
+            LiteralKind::Char(x) => match $other {
+                LiteralKind::Char(y) => Ok(LiteralKind::Boolean(x $op y)),
+                _ => panic!("Not implemented")
             },
             LiteralKind::Boolean(_) => Err(AstError::CannotImplicitityCastBoolToNumeric),
-            LiteralKind::Void => Ok(LiteralKind::Boolean(false))
+            LiteralKind::Void => Ok(LiteralKind::Boolean(false)),
+            LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray),
         }
     }
 }
@@ -237,14 +314,18 @@ macro_rules! boolean_reduce {
         match $self {
             LiteralKind::Integer(_) => Err(AstError::CannotImplicitityCastNumericToBool),
             LiteralKind::Real(_) => Err(AstError::CannotImplicitityCastNumericToBool),
+            LiteralKind::Char(_) => Err(AstError::CannotImplicitityCastChar),
             LiteralKind::Void => Err(AstError::CannotImplicitityCastNumericToBool),
+            LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray),
 
             LiteralKind::Boolean(x) => match $other {
                 LiteralKind::Boolean(y) => Ok(LiteralKind::Boolean(x $op y)),
 
                 LiteralKind::Integer(_) => Err(AstError::CannotImplicitityCastNumericToBool),
                 LiteralKind::Real(_) => Err(AstError::CannotImplicitityCastNumericToBool),
+                LiteralKind::Char(_) => Err(AstError::CannotImplicitityCastChar),
                 LiteralKind::Void => Err(AstError::CannotImplicitityCastNumericToBool),
+                LiteralKind::Array(_) => Err(AstError::OperatorNotSupportedWithArray),
             },
         }
     }

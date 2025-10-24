@@ -13,6 +13,8 @@ const COMMENT_SYMBOL: char = '#';
 #[derive(Debug)]
 pub enum TokenizerError {
     IllegalToken(char),
+    MissingQuote,
+    CharMustBeOneCharacter,
     UndefinedIdentifier(Box<str>),
 }
 
@@ -20,6 +22,8 @@ impl fmt::Display for TokenizerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TokenizerError::IllegalToken(ch) => write!(f, "IllegalToken({ch})"),
+            TokenizerError::MissingQuote => write!(f, "MissingQuote"),
+            TokenizerError::CharMustBeOneCharacter => write!(f, "CharMustBeOneCharacter"),
             TokenizerError::UndefinedIdentifier(str) => write!(f, "UndefinedIdentifier({str})"),
         }
     }
@@ -30,6 +34,7 @@ pub enum Token {
     LiteralInteger(i32),
     LiteralReal(f32),
     LiteralBoolean(bool),
+    LiteralChar(char),
 
     Identifier(Rc<str>),
 
@@ -142,6 +147,7 @@ impl fmt::Display for Token {
             Token::LiteralInteger(x) => write!(f, "LiteralInteger({x})"),
             Token::LiteralReal(x) => write!(f, "LiteralReal({x})"),
             Token::LiteralBoolean(x) => write!(f, "LiteralReal({x})"),
+            Token::LiteralChar(x) => write!(f, "LiteralChar({x})"),
             Token::Plus => write!(f, "Plus(+)"),
             Token::Minus => write!(f, "Minus(-)"),
             Token::Star => write!(f, "Star(*)"),
@@ -280,6 +286,29 @@ fn consume_comment(chs: &mut Peekable<CharIndices>) {
     }
 }
 
+fn parse_char(chs: &mut Peekable<CharIndices>) -> Result<char, TokenizerError> {
+    // First ' is checked for before parse_char() is called
+    let _ = chs.next();
+
+    let literal_char: char;
+    if let Some(&(_, ch)) = chs.peek() {
+        literal_char = ch;
+        let _ = chs.next();
+    }else {
+        return Err(TokenizerError::CharMustBeOneCharacter);
+    }
+
+    if let Some(&(_, ch)) = chs.peek() {
+        if ch != '\'' {
+            return Err(TokenizerError::MissingQuote);
+        }else {
+            let _ = chs.next();
+        }
+    }
+
+    Ok(literal_char)
+}
+
 pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
     let radix = 10;
     let mut tokens: Vec<Token> = Vec::with_capacity(text.len());
@@ -299,6 +328,11 @@ pub fn tokenize(text: &str) -> Result<Vec<Token>, (TokenizerError, usize)> {
                 Ok(tok) => tokens.push(tok),
                 Err(e) => return Err((e, i)),
             }
+        } else if ch == '\'' {
+            match parse_char(&mut chs) {
+                Ok(tok) => tokens.push(Token::LiteralChar(tok)),
+                Err(e) => return Err((e, i))
+            };
         } else {
             chs.next();
             match char_to_token(ch) {
